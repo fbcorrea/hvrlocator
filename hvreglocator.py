@@ -33,7 +33,7 @@ for fasta in fasta_sequences:
 			if a==b:
 				count += 1
 			else:
-				counts.append((count))
+				counts.append((len(fasta.seq)-count))
 				count = 1
 		else:
 			break
