@@ -15,8 +15,9 @@ git clone https://github.com/felipeborim789/hvreglocator/
 ## Usage
 01. Align the reference sequence (ecoli.fa) with the query sequences (query.fa)
 ```bash
-mafft --nuc <(cat ecoli.fa query.fa) > mafft.fa
+mafft --nuc --nuc --keeplength --addfragments query.fa ecoli.fa > mafft.fa
 ```
+Info about "--addfragments" and "--keeplength" options: https://mafft.cbrc.jp/alignment/server/add.html
 
 02. Run hvreglocator to infer spanning region
 ```bash
