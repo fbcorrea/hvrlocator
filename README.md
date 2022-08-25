@@ -1,7 +1,7 @@
 # Hypervariable region locator
 Workflow to identify spanning hypervariable region(s) from amplicon sequencing variants.
 First, the query sequences are aligned to a reference E. coli full-length 16S rRNA gene. That is because the hypervariable region positions are based on this species gene.
-Then, the resulting alignment is parsed and the spanning region is idenfied by counting the start and end of the alignment.
+Then, the resulting alignment is parsed and the spanning region is idenfied by locating the average start and end of the alignment.
 
 ## Installing hvreglocator
 The easiest way is to install the requirements using conda
