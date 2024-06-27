@@ -10,7 +10,7 @@ Then, the resulting alignment the spanning region is idenfied through alignment.
 
 The easiest way is to install the requirements using Conda (in this case through Mamba)
 ```bash
-mamba create -n hvreglocator -c bioconda sra-tools mafft biopython
+mamba create -n hvreglocator -c bioconda sra-tools mafft biopython fastp
 source activate hvreglocator
 git clone https://github.com/felipeborim789/hvreglocator/
 ```
