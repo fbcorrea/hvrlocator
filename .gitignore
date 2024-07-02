@@ -1,1 +1,4 @@
 bkp_scripts/
+build/
+__pycache__/
+hvreglocator.egg-info/
