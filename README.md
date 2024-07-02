@@ -1,53 +1,72 @@
-# Hypervariable region locator
+# HVRegLocator
 
-Workflow to identify spanning hypervariable region(s) from amplicon sequencing variants
-or SRA public runs (SRR).
-First, the query sequences are aligned to a reference E. coli full-length 16S rRNA gene. 
-That is because the hypervariable region positions are based on this species gene.
-Then, the resulting alignment the spanning region is idenfied through alignment.
+HVRegLocator is a workflow to identify spanning hypervariable region(s) from amplicon sequencing variants or SRA public runs (SRR). It aligns query sequences to a reference E. coli full-length 16S rRNA gene and identifies the spanning region through alignment.
 
-# Installing hvreglocator
+## Installation
 
-The easiest way is to install the requirements using Conda (in this case through Mamba)
-```bash
-mamba create -n hvreglocator -c bioconda sra-tools mafft biopython fastp
-source activate hvreglocator
-git clone https://github.com/felipeborim789/hvreglocator/
-```
+To install HVRegLocator, follow these steps:
 
-# Scripts
-
-- **hvreglocator.py** works for resolved ASVs. The input argument expects the path to a fasta file containing a single ASV DNA sequence.
-
-- **hvreglocator_mod.py** module that works for SRA accession numbers. The input argument expects a public SRR accession number (SRA Run containing the sequencing data).
-
-- **main.py** calls the whole pipeline for SRA and runs **hvreglocator_mod.py**.
-
-## Usage with SRA accesion numbers
-
-Example with run accession SRR1585194.
-
-According to the name of the run this is V1-V3:
-Illumina MiSeq paired end sequencing; M0-inoculate Illumina 16s V1-V3 Environmental Sample
-
+1. Create a new conda environment:
 
 ```bash
-python3 main.py -i SRR1585194
+mamba create --prefix /global/apps/hvreglocator/0.1 -y -c bioconda python=3.9 sra-tools mafft fastp biopython numpy scipy
 ```
 
-**Results**
-Altough the expected output is V1-V3, I am getting V1-V2. I need to check why.
+2. Activate the environment, clone the repository, and install the package:
 
-
-## Usage with ASVs
-
-01. Align the reference sequence (ecoli.fa) with the query sequences (query.fa)
 ```bash
-mafft --nuc --keeplength --addfragments query.fa ecoli.fa > mafft.fa
+source activate /global/apps/hvreglocator/0.1 && \
+cd /global/apps/hvreglocator/0.1 && \
+git clone https://github.com/fbcorrea/hvreglocator.git && \
+cd hvreglocator && \
+pip install -e .
 ```
-Info about "--addfragments" and "--keeplength" options: https://mafft.cbrc.jp/alignment/server/add.html
 
-02. Run hvreglocator to infer spanning region
+Note: Replace the GitHub URL with the appropriate URL for your repository.
+
+## Usage
+
+HVRegLocator can process both SRA accession numbers and FASTA files containing ASV sequences.
+
+### Processing SRA Accession Numbers
+
+To process an SRA run:
+
 ```bash
-python3 hvreglocator.py mafft.fa
+hvreglocator sra -r SRR1585194
 ```
+
+You can specify the location of the E. coli reference file if it's not in the default location:
+
+```bash
+hvreglocator sra -r SRR1585194 --ecoli /path/to/ecoli.fa
+```
+
+### Processing ASV FASTA Files
+
+To process a FASTA file containing ASV sequences:
+
+```bash
+hvreglocator fasta -f path/to/your/asv_sequences.fasta
+```
+
+## Output
+
+The script will output the alignment start and end positions, as well as the identified hypervariable region span (e.g., V1-V3).
+
+## Project Structure
+
+- `hvreglocator.py`: The main script that handles both SRA and FASTA processing.
+- `setup.py`: Used for installing the package.
+
+## Troubleshooting
+
+If you encounter any issues with finding the E. coli reference file, make sure it's in the same directory as the `hvreglocator.py` script, or use the `--ecoli` argument to specify its location.
+
+## Contributing
+
+Contributions to HVRegLocator are welcome. Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the terms of the MIT license.
