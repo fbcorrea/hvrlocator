@@ -2,146 +2,99 @@ import argparse
 import subprocess
 import os
 import sys
-import numpy as np
-from scipy import stats
 from Bio import SeqIO
-import matplotlib.pyplot as plt
 
-def run_command(command, input_file=None, output_file=None):
+def run_command(command, working_directory=None):
     print(f"Executing command: {command}")
-    infile = open(input_file, 'r') if input_file else None
-    outfile = open(output_file, 'w') if output_file else None
     try:
-        process = subprocess.Popen(command, stdin=infile, stdout=outfile if outfile else subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        _, stderr = process.communicate()
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, cwd=working_directory)
+        stdout, stderr = process.communicate()
         if process.returncode != 0:
             print(f"Error executing command. Return code: {process.returncode}")
             print(f"Error message: {stderr.decode('utf-8')}")
             return False
         print("Command executed successfully.")
-    finally:
-        if infile:
-            infile.close()
-        if outfile:
-            outfile.close()
-    return True
+        return True
+    except Exception as e:
+        print(f"Exception occurred: {str(e)}")
+        return False
 
 def process_sra(input_id, working_directory, ecoli_fa):
     print(f"Processing SRA data for ID: {input_id}")
     print(f"Working directory: {working_directory}")
     print(f"E. coli reference file: {ecoli_fa}")
 
-    # Define file paths with Wdir directory
-    fastq_dump_file = os.path.join(working_directory, "fastq_dump_output.txt")
-    fastp_file = os.path.join(working_directory, "fastp_output.txt")
-    sed_file = os.path.join(working_directory, "sed_output.txt")
-    mafft_file = os.path.join(working_directory, "mafft_output.txt")
-    final_output_file = os.path.join(working_directory, "hvreglocator_output.txt")
+    # Ensure working directory exists
+    os.makedirs(working_directory, exist_ok=True)
+
+    # Change to the working directory
+    os.chdir(working_directory)
+
+    # Define file paths (now relative to working_directory)
+    fastq_dump_file_1 = f"{input_id}_1.fastq"
+    fastq_dump_file_2 = f"{input_id}_2.fastq"
+    merged_file = f"{input_id}_merged.fasta"
+    aligned_file = f"{input_id}_aligned.fasta"
+    final_output_file = "hvreglocator_output.txt"
 
     print(f"Output files will be saved in: {working_directory}")
 
-    # Define and run each command
+    # Step 1: Run fastq-dump to get paired-end reads
     print("\nStep 1: Running fastq-dump...")
-    fastq_dump_command = f"fastq-dump --split-files --defline-seq '@$ac.$si.$sg/$ri' --defline-qual '+' -Z {input_id} | head -n 8192 > {fastq_dump_file}"
-    if not run_command(fastq_dump_command):
+    fastq_dump_command = f"fastq-dump --split-files {input_id}"
+    if not run_command(fastq_dump_command, working_directory):
         print("Error in fastq-dump command. Exiting.")
         return False
 
-    print("\nStep 2: Running fastp...")
-    fastp_command = f"cat {fastq_dump_file} | fastp --stdin --stdout --interleaved_in --detect_adapter_for_pe > {fastp_file}"
-    if not run_command(fastp_command):
-        print("Error in fastp command. Exiting.")
+    # Step 2: Merge paired-end reads using vsearch and output as FASTA
+    print("\nStep 2: Merging paired-end reads...")
+    merge_command = f"vsearch --fastq_mergepairs {fastq_dump_file_1} --reverse {fastq_dump_file_2} --fastaout {merged_file}"
+    if not run_command(merge_command, working_directory):
+        print("Error in merging paired-end reads. Exiting.")
         return False
 
-    print("\nStep 3: Running sed...")
-    sed_command = f"cat {fastp_file} | sed -n '1~4s/^@/>/p;2~4p' > {sed_file}"
-    if not run_command(sed_command):
-        print("Error in sed command. Exiting.")
+    # Step 3: Align merged reads to reference
+    print("\nStep 3: Aligning merged reads to reference...")
+    align_command = f"mafft --thread 8 --6merpair --nuc --keeplength --addfragments {merged_file} {ecoli_fa} > {aligned_file}"
+    if not run_command(align_command, working_directory):
+        print("Error in alignment. Exiting.")
         return False
 
-    print("\nStep 4: Running mafft...")
-    mafft_command = f"mafft --thread 8 --6merpair --nuc --keeplength --addfragments {sed_file} {ecoli_fa} > {mafft_file}"
-    if not run_command(mafft_command):
-        print("Error in mafft command. Exiting.")
-        return False
-
-    print("\nStep 5: Running hvreglocator...")
-    hvreglocator_output = process_fasta(mafft_file)
+    # Step 4: Process aligned file
+    print("\nStep 4: Processing aligned file...")
+    hvreglocator_output = process_fasta(aligned_file)
     
     with open(final_output_file, 'w') as f:
         f.write(hvreglocator_output)
 
-    print(f"\nProcess completed successfully. Final output saved in: {final_output_file}")
-    return final_output_file
+    print(f"\nProcess completed successfully. Final output saved in: {os.path.join(working_directory, final_output_file)}")
+    return os.path.join(working_directory, final_output_file)
 
 def process_fasta(input_fasta):
     print(f"Processing FASTA file: {input_fasta}")
     
-    sequences = list(SeqIO.parse(input_fasta, "fasta"))
-    print(f"Total sequences read: {len(sequences)}")
+    fasta_sequences = list(SeqIO.parse(input_fasta, 'fasta'))
+    print(f"Total sequences read: {len(fasta_sequences)}")
     
-    ref_seq = sequences.pop(0)
-    print(f"Sequences after removing reference: {len(sequences)}")
+    if len(fasta_sequences) < 2:
+        print("Error: Not enough sequences in the alignment file.")
+        return "Error: Insufficient sequences for analysis."
 
-    filtered_sequences = [record for record in sequences if '/' in record.id]
-    print(f"Filtered sequences: {len(filtered_sequences)}")
+    ref_seq = fasta_sequences[0]
+    query_seq = fasta_sequences[1]
 
-    start_positions = []
-    end_positions = []
+    ref_str = str(ref_seq.seq)
+    query_str = str(query_seq.seq)
 
-    for record in filtered_sequences:
-        seq_str = str(record.seq)
-        start = next((i for i, char in enumerate(seq_str) if char != '-'), None)
-        end = len(seq_str) - next((i for i, char in enumerate(reversed(seq_str)) if char != '-'), None)
-        if start is not None and end is not None:
-            start_positions.append(start)
-            end_positions.append(end)
+    # Find start position (first non-gap character in query)
+    start_pos = next((i for i, char in enumerate(query_str) if char != '-'), None)
 
-    start_positions = np.array(start_positions)
-    end_positions = np.array(end_positions)
-    
-    print(f"Start positions: min={np.min(start_positions)}, max={np.max(start_positions)}, mean={np.mean(start_positions):.2f}, median={np.median(start_positions)}")
-    print(f"End positions: min={np.min(end_positions)}, max={np.max(end_positions)}, mean={np.mean(end_positions):.2f}, median={np.median(end_positions)}")
-    
-    # Create histograms
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 2, 1)
-    plt.hist(start_positions, bins=50)
-    plt.title("Start Positions Histogram")
-    plt.xlabel("Position")
-    plt.ylabel("Frequency")
-    
-    plt.subplot(1, 2, 2)
-    plt.hist(end_positions, bins=50)
-    plt.title("End Positions Histogram")
-    plt.xlabel("Position")
-    plt.ylabel("Frequency")
-    
-    plt.tight_layout()
-    plt.savefig("position_histograms.png")
-    print("Histograms saved as 'position_histograms.png'")
+    # Find end position (last non-gap character in query)
+    end_pos = len(query_str) - next((i for i, char in enumerate(reversed(query_str)) if char != '-'), None) - 1
 
-    # Use mode (most common value) for start and end
-    start_pos = int(np.bincount(start_positions).argmax())
-    end_pos = int(np.bincount(end_positions).argmax())
-
-    print(f"Using start_pos: {start_pos}, end_pos: {end_pos}")
-
-    # Adjust these ranges based on the E. coli 16S rRNA gene positions for 515F-Y and 926R
-    if 500 <= start_pos < 550:
-        region_start = 4  # 515F-Y primer
-    else:
-        region_start = "Unknown"
-
-    if 900 <= end_pos < 950:
-        region_end = 5  # 926R primer
-    elif 750 <= end_pos < 900:
-        region_end = 4  # In case the alignment ends within V4
-    else:
-        region_end = "Unknown"
-
-    print(f"Determined start region: V{region_start}")
-    print(f"Determined end region: V{region_end}")
+    # Determine hypervariable regions
+    region_start = determine_region(start_pos)
+    region_end = determine_region(end_pos, is_start=False)
 
     results = f"\nResults:\n"
     results += f"Alignment start: {start_pos}\n"
@@ -151,6 +104,28 @@ def process_fasta(input_fasta):
     print(results)
     return results
 
+def determine_region(pos, is_start=True):
+    regions = [
+        (1, 0, 69),
+        (2, 99, 157),
+        (3, 227, 440),
+        (4, 500, 590),
+        (5, 650, 828),
+        (6, 857, 1000),
+        (7, 1036, 1119),
+        (8, 1158, 1243),
+        (9, 1295, 1435)
+    ]
+
+    if not is_start:
+        regions.reverse()
+
+    for region, start, end in regions:
+        if start <= pos <= end:
+            return region
+
+    return "Unknown"
+
 def main():
     print("Starting HVRegLocator...")
     parser = argparse.ArgumentParser(description="HVRegLocator: Process SRA data or FASTA file to locate hypervariable regions.")
@@ -158,13 +133,14 @@ def main():
     parser.add_argument("-r", "--run-id", help="SRA Run ID for processing (required for 'sra' command)")
     parser.add_argument("-f", "--fasta-file", help="Input FASTA file (required for 'fasta' command)")
     parser.add_argument("-e", "--ecoli", help="Path to ecoli.fa file", default=None)
+    parser.add_argument("-w", "--working-dir", help="Working directory", default=os.getcwd())
     
     args = parser.parse_args()
     print(f"Command-line arguments: {args}")
 
     # Determine the path to ecoli.fa
     if args.ecoli:
-        ecoli_fa = args.ecoli
+        ecoli_fa = os.path.abspath(args.ecoli)
     else:
         # Use the directory of the script to find ecoli.fa
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -182,7 +158,7 @@ def main():
             parser.error("The 'sra' command requires the --run-id argument")
         
         print(f"Processing SRA data for run ID: {args.run_id}")
-        working_directory = "Wdir"
+        working_directory = os.path.abspath(args.working_dir)
         if not os.path.exists(working_directory):
             print(f"Creating working directory: {working_directory}")
             os.makedirs(working_directory)
