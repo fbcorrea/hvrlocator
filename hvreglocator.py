@@ -184,6 +184,9 @@ def determine_region(pos, is_start=True):
     for region, start, end in regions:
         if start <= pos <= end:
             return region
+    # If position is greater than the last defined region, return 9
+    if pos > 1435:
+        return 9
     return "Unknown"
 
 def process_id_list(id_list_file, output_dir, ecoli_fa):
