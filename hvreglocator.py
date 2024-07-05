@@ -126,36 +126,43 @@ def run_command(command):
 
 def process_fasta(input_fasta):
     print(f"Processing FASTA file: {input_fasta}")
-    
     fasta_sequences = list(SeqIO.parse(input_fasta, 'fasta'))
     print(f"Total sequences read: {len(fasta_sequences)}")
     
     if len(fasta_sequences) < 2:
         print("Error: Not enough sequences in the alignment file.")
         return "Error\tInsufficient sequences for analysis"
-
-    ref_seq = fasta_sequences[0]
-    query_seq = fasta_sequences[1]
-
-    ref_str = str(ref_seq.seq)
-    query_str = str(query_seq.seq)
-
-    # Find start position (first non-gap character in query)
-    start_pos = next((i for i, char in enumerate(query_str) if char != '-'), None)
-
-    # Find end position (last non-gap character in query)
-    end_pos = len(query_str) - next((i for i, char in enumerate(reversed(query_str)) if char != '-'), None) - 1
-
+    
+    start_positions = []
+    end_positions = []
+    
+    for seq in fasta_sequences:
+        seq_str = str(seq.seq)
+        # Find start position (first non-gap character)
+        start_pos = next((i for i, char in enumerate(seq_str) if char != '-'), None)
+        # Find end position (last non-gap character)
+        end_pos = len(seq_str) - next((i for i, char in enumerate(reversed(seq_str)) if char != '-'), None) - 1
+        
+        if start_pos is not None and end_pos is not None:
+            start_positions.append(start_pos)
+            end_positions.append(end_pos)
+    
+    if not start_positions or not end_positions:
+        print("Error: No valid alignment positions found.")
+        return "Error\tNo valid alignment positions"
+    
+    # Calculate median start and end positions
+    median_start = int(statistics.median(start_positions))
+    median_end = int(statistics.median(end_positions))
+    
     # Determine hypervariable regions
-    region_start = determine_region(start_pos)
-    region_end = determine_region(end_pos, is_start=False)
-
+    region_start = determine_region(median_start)
+    region_end = determine_region(median_end, is_start=False)
+    
     # Create TSV output
-    headers = ["Alignment_start", "Alignment_end", "HV_region_start", "HV_region_end"]
-    values = [start_pos, end_pos, f"V{region_start}", f"V{region_end}"]
-    
+    headers = ["Median_Alignment_start", "Median_Alignment_end", "HV_region_start", "HV_region_end"]
+    values = [median_start, median_end, f"V{region_start}", f"V{region_end}"]
     results = "\t".join(headers) + "\n" + "\t".join(map(str, values))
-    
     print(results)
     return results
 
@@ -171,14 +178,11 @@ def determine_region(pos, is_start=True):
         (8, 1158, 1243),
         (9, 1295, 1435)
     ]
-
     if not is_start:
         regions.reverse()
-
     for region, start, end in regions:
         if start <= pos <= end:
             return region
-
     return "Unknown"
 
 def process_id_list(id_list_file, output_dir, ecoli_fa):
