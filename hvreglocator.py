@@ -40,9 +40,9 @@ def process_sra(input_id, output_dir, ecoli_fa):
 
     print(f"Output files will be saved in: {working_directory}")
 
-    # Step 1: Run fastq-dump to get reads
+    # Step 1: Run fastq-dump to get reads (first 1000)
     print("\nStep 1: Running fastq-dump...")
-    fastq_dump_command = f"fastq-dump --split-files {input_id} -O {working_directory}"
+    fastq_dump_command = f"fastq-dump  --split-files -X 1000 {input_id} -O {working_directory}"
     if not run_command(fastq_dump_command):
         print("Error in fastq-dump command. Exiting.")
         return False
