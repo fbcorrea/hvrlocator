@@ -52,6 +52,14 @@ def process_sra(input_id, output_dir, ecoli_fa):
     print("\nListing files after fastq-dump:")
     run_command(f"ls -l {working_directory}")
 
+    with open(fastq_dump_file_1) as f:
+        read_count = sum(1 for line in f) // 4
+
+    if read_count < 500:
+        error_message = f"Error: Run {input_id} has less than 500 reads and the current sample was skipped."
+        print(error_message)
+        return
+
     # Check if we have paired-end or single-end reads
     is_paired = os.path.exists(fastq_dump_file_2)
     print(f"Is paired-end: {is_paired}")
@@ -96,7 +104,7 @@ def process_sra(input_id, output_dir, ecoli_fa):
 
     # Step 4: Align reads to reference
     print("\nStep 4: Aligning reads to reference...")
-    align_command = f"mafft --thread 8 --6merpair --nuc --keeplength --addfragments {sed_file} {ecoli_fa} > {aligned_file}"
+    align_command = f"mafft --thread 16 --6merpair --nuc --keeplength --addfragments {sed_file} {ecoli_fa} > {aligned_file}"
     if not run_command(align_command):
         print("Error in alignment. Exiting.")
         return False
