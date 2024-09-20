@@ -1,10 +1,10 @@
-# HVRegLocator
+# HVR Locator
 
-HVRegLocator is a workflow to identify spanning hypervariable region(s) from amplicon sequencing variants or SRA public runs (SRR). It aligns query sequences to a reference E. coli full-length 16S rRNA gene and identifies the spanning region through alignment.
+HVR Locator is a workflow to identify spanning hypervariable region(s) from amplicon sequencing variants or SRA public runs (SRR). It aligns query sequences to a reference E. coli full-length 16S rRNA gene and identifies the spanning region through alignment.
 
 ## Installation
 
-To install HVRegLocator, follow these steps:
+To install HVR Locator, follow these steps:
 
 1. Create a new conda environment:
 
