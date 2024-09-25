@@ -5,6 +5,19 @@ import os
 import sys
 from Bio import SeqIO
 
+
+regions = [
+    (1, 0, 69),
+    (2, 99, 157),
+    (3, 227, 440),
+    (4, 500, 590),
+    (5, 650, 828),
+    (6, 857, 1000),
+    (7, 1036, 1119),
+    (8, 1158, 1243),
+    (9, 1295, 1435)
+]
+
 def run_command(command, working_directory=None):
     print(f"Executing command: {command}")
     try:
@@ -171,31 +184,24 @@ def process_fasta(input_fasta):
     # Create TSV output
     headers = ["Median_Alignment_start", "Median_Alignment_end", "HV_region_start", "HV_region_end"]
     values = [median_start, median_end, f"V{region_start}", f"V{region_end}"]
-    results = "\t".join(headers) + "\n" + "\t".join(map(str, values))
+    results = "\t".join(headers) + "\n" + "\t".join(map(str, values)) + "\n"
     print(results)
     return results
 
 def determine_region(pos, is_start=True):
-    regions = [
-        (1, 0, 69),
-        (2, 99, 157),
-        (3, 227, 440),
-        (4, 500, 590),
-        (5, 650, 828),
-        (6, 857, 1000),
-        (7, 1036, 1119),
-        (8, 1158, 1243),
-        (9, 1295, 1435)
-    ]
-    if not is_start:
-        regions.reverse()
-    for region, start, end in regions:
-        if start <= pos <= end:
-            return region
-    # If position is greater than the last defined region, return 9
-    if pos > 1435:
-        return 9
-    return "Unknown"
+    if is_start:
+        # For start, get the nearest region to the right (i.e., the first region that starts after the pos)
+        for region, start, end in regions:
+            if pos <= end:
+                return f"{region}"
+        return "Unknown"  # If pos is greater than all defined regions
+    
+    else:
+        # For end, get the nearest region to the left (i.e., the last region that ends before the pos)
+        for region, start, end in reversed(regions):
+            if pos >= start:
+                return f"{region}"
+        return "Unknown"  # If pos is less than all defined regions
 
 def process_id_list(id_list_file, output_dir, ecoli_fa):
     with open(id_list_file, 'r') as f:
