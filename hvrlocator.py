@@ -35,6 +35,8 @@ def run_command(command, working_directory=None):
         print(f"Exception occurred: {str(e)}")
         return False
 
+import os
+
 def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
     print(f"Processing SRA data for ID: {input_id}")
     working_directory = os.path.join(output_dir, input_id)
@@ -66,11 +68,33 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
     print("\nListing files after fastq-dump:")
     run_command(f"ls -l {working_directory}")
 
+    # Check for the presence of the files
+    available_files = [f for f in os.listdir(working_directory) if f.endswith('.fastq')]
+    
+    if not available_files:
+        print("Error: No FASTQ files found after fastq-dump.")
+        return None
+
+    # Determine which files are available
+    fastq_file_1_exists = f"{input_id}_1.fastq" in available_files
+    fastq_file_2_exists = f"{input_id}_2.fastq" in available_files
+
+    # Select files to process based on availability
+    if fastq_file_1_exists:
+        fastq_file_1 = fastq_dump_file_1
+    elif fastq_file_2_exists:
+        fastq_file_1 = fastq_dump_file_2  # Fallback if _1 doesn't exist
+    else:
+        print("Error: Neither _1 nor _2 FASTQ files are available for processing.")
+        return None
+
+    # Proceed with processing the available file
     try:
-        with open(fastq_dump_file_1) as f:
+        with open(fastq_file_1) as f:
             read_count = sum(1 for line in f) // 4
+        print(f"Read count from {fastq_file_1}: {read_count}")
     except FileNotFoundError:
-        print(f"Error: File {fastq_dump_file_1} not found.")
+        print(f"Error: File {fastq_file_1} not found.")
         return None
 
     if read_count < 500:
