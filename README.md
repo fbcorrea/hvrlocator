@@ -9,16 +9,16 @@ To install HVR Locator, follow these steps:
 1. Create a new conda environment:
 
 ```bash
-mamba create --prefix /global/apps/hvreglocator/0.1 -y -c bioconda python=3.9 sra-tools mafft fastp biopython numpy scipy
+mamba create --prefix /global/apps/hvreglocator/0.2 -y -c bioconda python=3.9 sra-tools mafft fastp biopython numpy scipy
 ```
 
 2. Activate the environment, clone the repository, and install the package:
 
 ```bash
-source activate /global/apps/hvreglocator/0.1 && \
-cd /global/apps/hvreglocator/0.1 && \
-git clone https://github.com/fbcorrea/hvreglocator.git && \
-cd hvreglocator && \
+source activate /global/apps/hvrlocator/0.2 && \
+cd /global/apps/hvrlocator/0.2 && \
+git clone https://github.com/fbcorrea/hvrlocator.git && \
+cd hvrlocator && \
 pip install -e .
 ```
 
