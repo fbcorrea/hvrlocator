@@ -57,7 +57,7 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
 
     # Step 1: Run fastq-dump to get reads (first 1000)
     print("\nStep 1: Running fastq-dump...")
-    fastq_dump_command = f"fastq-dump --split-files -X 1000 {input_id} -O {working_directory}"
+    fastq_dump_command = f"fastq-dump --skip-technical --split-files -X 1000 {input_id} -O {working_directory}"
     if not run_command(fastq_dump_command):
         print("Error in fastq-dump command. Exiting.")
         return None
@@ -88,14 +88,31 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
     print("\nStep 2: Running fastp...")
     if is_paired:
         print("Processing paired-end reads with fastp...")
-        fastp_command = (
-            f"fastp --in1 {fastq_dump_file_1} --in2 {fastq_dump_file_2} "
-            f"--out1 {fastp_file_1} --out2 {fastp_file_2} --detect_adapter_for_pe"
-        )
+        
+        # Check for the existence of both files
+        if os.path.exists(fastq_dump_file_1) and os.path.exists(fastq_dump_file_2):
+            fastp_command = (
+                f"fastp --in1 {fastq_dump_file_1} --in2 {fastq_dump_file_2} "
+                f"--out1 {fastp_file_1} --out2 {fastp_file_2} --detect_adapter_for_pe"
+            )
+        else:
+            print("One or both paired-end files not found. Exiting.")
+            return None
+
     else:
         print("Processing single-end reads with fastp...")
-        fastp_command = f"fastp --in1 {fastq_dump_file_1} --out1 {fastp_file_1}"
+        
+        # Check for the first file, and fallback to the second if not found
+        if os.path.exists(fastq_dump_file_1):
+            fastp_command = f"fastp --in1 {fastq_dump_file_1} --out1 {fastp_file_1}"
+        elif os.path.exists(fastq_dump_file_2):
+            print("fastq_dump_file_1 not found, using fastq_dump_file_2...")
+            fastp_command = f"fastp --in1 {fastq_dump_file_2} --out1 {fastp_file_1}"
+        else:
+            print("Both fastq_dump_file_1 and fastq_dump_file_2 not found. Exiting.")
+            return None
 
+    # Run the fastp command
     if not run_command(fastp_command):
         print("Error in fastp command. Exiting.")
         return None
@@ -222,8 +239,18 @@ def process_fasta(input_fasta, threshold, sample_id, include_header=True):
     
     # Collect warnings for regions below threshold but with some coverage
     coverage_below_threshold = [rn for rn, cov in coverage_details.items() if 0 < cov < threshold]
-    warnings = [f"V{rn} below threshold of {threshold}" for rn in coverage_below_threshold]
-    warning_message = "; ".join(warnings) if warnings else ""
+    
+    if coverage_below_threshold:
+        if len(coverage_below_threshold) == 1:
+            warning_message = f"V{coverage_below_threshold[0]} below threshold of {threshold}"
+        elif len(coverage_below_threshold) == 2:
+            warning_message = f"V{coverage_below_threshold[0]} and V{coverage_below_threshold[1]} below threshold of {threshold}"
+        else:
+            regions_list = ", ".join(f"V{rn}" for rn in coverage_below_threshold[:-1])
+            regions_list += f", and V{coverage_below_threshold[-1]}"
+            warning_message = f"{regions_list} below threshold of {threshold}"
+    else:
+        warning_message = ""
     
     # Create TSV output
     headers = ["Sample_ID", "Median_Alignment_start", "Median_Alignment_end", 
@@ -275,7 +302,7 @@ def process_table(input_tsv, output_dir, threshold, combined_output_file):
         combined_headers = ["Sample_ID", "Median_Alignment_start", "Median_Alignment_end", 
                             "HV_region_start", "HV_region_end", 
                             "Warnings"] + [f"Cov_V{rn}" for rn in range(1, 10)]
-        
+    
         with open(combined_output_file, 'w', newline='') as outfile:
             writer = csv.DictWriter(outfile, fieldnames=combined_headers, delimiter='\t')
             writer.writeheader()
@@ -289,7 +316,10 @@ def process_table(input_tsv, output_dir, threshold, combined_output_file):
                 coverage_details = {}
                 for rn in range(1, 10):
                     cov_key = f"Cov_V{rn}"
-                    coverage_details[rn] = float(row.get(cov_key, 0))
+                    try:
+                        coverage_details[rn] = float(row.get(cov_key, 0))
+                    except ValueError:
+                        coverage_details[rn] = 0.0  # Handle non-numeric values gracefully
                 
                 # Identify regions that meet the new threshold
                 covered_regions = [rn for rn, cov in coverage_details.items() if cov >= threshold]
@@ -309,8 +339,18 @@ def process_table(input_tsv, output_dir, threshold, combined_output_file):
                 
                 # Collect warnings for regions below threshold but with some coverage
                 coverage_below_threshold = [rn for rn, cov in coverage_details.items() if 0 < cov < threshold]
-                warnings = [f"V{rn} below threshold of {threshold}" for rn in coverage_below_threshold]
-                warning_message = "; ".join(warnings) if warnings else ""
+                
+                if coverage_below_threshold:
+                    if len(coverage_below_threshold) == 1:
+                        warning_message = f"V{coverage_below_threshold[0]} below threshold of {threshold}"
+                    elif len(coverage_below_threshold) == 2:
+                        warning_message = f"V{coverage_below_threshold[0]} and V{coverage_below_threshold[1]} below threshold of {threshold}"
+                    else:
+                        regions_list = ", ".join(f"V{rn}" for rn in coverage_below_threshold[:-1])
+                        regions_list += f", and V{coverage_below_threshold[-1]}"
+                        warning_message = f"{regions_list} below threshold of {threshold}"
+                else:
+                    warning_message = ""
                 
                 # Prepare the new row
                 new_row = {
@@ -447,7 +487,7 @@ def main():
         else:
             print("Error: The 'sra' command requires either --run-id or --list-file argument")
             parser.error("The 'sra' command requires either --run-id or --list-file argument")
-    
+
     elif args.command == "fasta":
         print(f"Processing FASTA file: {args.fasta_file}")
         # Extract Sample_ID from the filename
@@ -459,7 +499,7 @@ def main():
             with open(output_file, 'w') as f:
                 f.write(hvreglocator_output)
             print(f"Final output saved in: {output_file}")
-    
+
     elif args.command == "table":
         input_tsv = os.path.abspath(args.input_tsv)
         combined_output_file = os.path.join(args.output_dir, "hvreglocator_recalculated_output.txt")
