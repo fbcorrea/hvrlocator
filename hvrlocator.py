@@ -79,7 +79,7 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
         return None
 
     # Check if we have paired-end or single-end reads
-    is_paired = os.path.exists(fastq_dump_file_2)
+    is_paired = os.path.exists(fastq_dump_file_1) and os.path.exists(fastq_dump_file_2)
     print(f"Is paired-end: {is_paired}")
     print(f"File 1 exists: {os.path.exists(fastq_dump_file_1)}")
     print(f"File 2 exists: {os.path.exists(fastq_dump_file_2)}")

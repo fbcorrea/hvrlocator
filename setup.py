@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="hvrlocator",
-    version="0.1",
+    version="0.2",
     py_modules=['hvrlocator'],
     entry_points={
         "console_scripts": [
