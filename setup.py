@@ -1,12 +1,12 @@
 from setuptools import setup
 
 setup(
-    name="hvreglocator",
+    name="hvrlocator",
     version="0.1",
-    py_modules=['hvreglocator'],
+    py_modules=['hvrlocator'],
     entry_points={
         "console_scripts": [
-            "hvreglocator=hvreglocator:main",
+            "hvrlocator=hvrlocator:main",
         ],
     },
     install_requires=[
