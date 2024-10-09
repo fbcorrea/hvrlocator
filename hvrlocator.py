@@ -5,6 +5,8 @@ import os
 import sys
 from Bio import SeqIO
 import csv
+import time
+import subprocess
 
 regions = [
     (1, 0, 69),
@@ -18,24 +20,46 @@ regions = [
     (9, 1295, 1435)
 ]
 
-def run_command(command, working_directory=None):
-    print(f"Executing command: {command}")
-    try:
-        process = subprocess.Popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, cwd=working_directory
-        )
-        stdout, stderr = process.communicate()
-        if process.returncode != 0:
-            print(f"Error executing command. Return code: {process.returncode}")
-            print(f"Error message: {stderr.decode('utf-8')}")
-            return False
-        print("Command executed successfully.")
-        return True
-    except Exception as e:
-        print(f"Exception occurred: {str(e)}")
-        return False
+# def run_command(command, working_directory=None):
+#     print(f"Executing command: {command}")
+#     try:
+#         process = subprocess.Popen(
+#             command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, cwd=working_directory
+#         )
+#         stdout, stderr = process.communicate()
+#         if process.returncode != 0:
+#             print(f"Error executing command. Return code: {process.returncode}")
+#             print(f"Error message: {stderr.decode('utf-8')}")
+#             return False
+#         print("Command executed successfully.")
+#         return True
+#     except Exception as e:
+#         print(f"Exception occurred: {str(e)}")
+#         return False
 
-import os
+
+def run_command_with_retry(command, working_directory=None, max_retries=3):
+    for attempt in range(max_retries):
+        print(f"Attempt {attempt + 1} of {max_retries}: Executing command: {command}")
+        try:
+            process = subprocess.Popen(
+                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, cwd=working_directory
+            )
+            stdout, stderr = process.communicate()
+            if process.returncode == 0:
+                print("Command executed successfully.")
+                return True, None
+            else:
+                print(f"Error executing command. Return code: {process.returncode}")
+                print(f"Error message: {stderr.decode('utf-8')}")
+        except Exception as e:
+            print(f"Exception occurred: {str(e)}")
+        
+        if attempt < max_retries - 1:
+            print(f"Retrying in 5 seconds...")
+            time.sleep(5)
+    
+    return False, stderr.decode('utf-8') if 'stderr' in locals() else str(e)
 
 def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
     print(f"Processing SRA data for ID: {input_id}")
@@ -60,9 +84,10 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
     # Step 1: Run fastq-dump to get reads (first 1000)
     print("\nStep 1: Running fastq-dump...")
     fastq_dump_command = f"fastq-dump --skip-technical --split-files -X 1000 {input_id} -O {working_directory}"
-    if not run_command(fastq_dump_command):
-        print("Error in fastq-dump command. Exiting.")
-        return None
+    success, error_message = run_command_with_retry(fastq_dump_command, working_directory=working_directory, max_retries=3)
+    
+    if not success:
+        return False, f"Error in fastq-dump command for {input_id}: {error_message}"
 
     # Debug: List files after fastq-dump
     print("\nListing files after fastq-dump:")
@@ -72,8 +97,7 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
     available_files = [f for f in os.listdir(working_directory) if f.endswith('.fastq')]
     
     if not available_files:
-        print("Error: No FASTQ files found after fastq-dump.")
-        return None
+        return False, f"Error: No FASTQ files found after fastq-dump for {input_id}"
 
     # Determine which files are available
     fastq_file_1_exists = f"{input_id}_1.fastq" in available_files
@@ -85,8 +109,7 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
     elif fastq_file_2_exists:
         fastq_file_1 = fastq_dump_file_2  # Fallback if _1 doesn't exist
     else:
-        print("Error: Neither _1 nor _2 FASTQ files are available for processing.")
-        return None
+        return False, f"Error: Neither _1 nor _2 FASTQ files are available for processing {input_id}"
 
     # Proceed with processing the available file
     try:
@@ -94,13 +117,10 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
             read_count = sum(1 for line in f) // 4
         print(f"Read count from {fastq_file_1}: {read_count}")
     except FileNotFoundError:
-        print(f"Error: File {fastq_file_1} not found.")
-        return None
+        return False, f"Error: File {fastq_file_1} not found for {input_id}"
 
     if read_count < 500:
-        error_message = f"Error: Run {input_id} has less than 500 reads and the current sample was skipped."
-        print(error_message)
-        return None
+        return False, f"Error: Run {input_id} has less than 500 reads and the current sample was skipped."
 
     # Check if we have paired-end or single-end reads
     is_paired = os.path.exists(fastq_dump_file_1) and os.path.exists(fastq_dump_file_2)
@@ -120,8 +140,7 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
                 f"--out1 {fastp_file_1} --out2 {fastp_file_2} --detect_adapter_for_pe"
             )
         else:
-            print("One or both paired-end files not found. Exiting.")
-            return None
+            return False, f"One or both paired-end files not found for {input_id}"
 
     else:
         print("Processing single-end reads with fastp...")
@@ -133,13 +152,11 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
             print("fastq_dump_file_1 not found, using fastq_dump_file_2...")
             fastp_command = f"fastp --in1 {fastq_dump_file_2} --out1 {fastp_file_1}"
         else:
-            print("Both fastq_dump_file_1 and fastq_dump_file_2 not found. Exiting.")
-            return None
+            return False, f"Both fastq_dump_file_1 and fastq_dump_file_2 not found for {input_id}"
 
     # Run the fastp command
     if not run_command(fastp_command):
-        print("Error in fastp command. Exiting.")
-        return None
+        return False, f"Error in fastp command for {input_id}"
 
     # Debug: List files after fastp
     print("\nListing files after fastp:")
@@ -152,15 +169,13 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
             f"vsearch --fastq_mergepairs {fastp_file_1} --reverse {fastp_file_2} --fastaout {merged_file}"
         )
         if not run_command(vsearch_command):
-            print("Error in vsearch command. Exiting.")
-            return None
+            return False, f"Error in vsearch command for {input_id}"
         sed_file = merged_file
     else:
         print("\nStep 3: Running sed to convert FASTQ to FASTA...")
         sed_command = f"sed -n '1~4s/^@/>/p;2~4p' {fastp_file_1} > {sed_file}"
         if not run_command(sed_command):
-            print("Error in sed command. Exiting.")
-            return None
+            return False, f"Error in sed command for {input_id}"
 
     # Debug: List files after vsearch/sed
     print("\nListing files after vsearch/sed:")
@@ -173,14 +188,168 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
         f"--addfragments {sed_file} {ecoli_fa} > {aligned_file}"
     )
     if not run_command(align_command):
-        print("Error in alignment. Exiting.")
-        return None
+        return False, f"Error in alignment for {input_id}"
 
     # Step 5: Process aligned file
     print("\nStep 5: Processing aligned file...")
-    hvreglocator_output = process_fasta(aligned_file, threshold, input_id, include_header=True)
+    hvreglocator_output = process_fasta(aligned_file, threshold, input_id, include_header=include_header)
 
-    return hvreglocator_output
+    return True, hvreglocator_output
+
+
+
+
+# Old function that works but if the connection is lost, we have a problem
+
+# def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
+#     print(f"Processing SRA data for ID: {input_id}")
+#     working_directory = os.path.join(output_dir, input_id)
+#     print(f"Working directory: {working_directory}")
+#     print(f"E. coli reference file: {ecoli_fa}")
+
+#     # Ensure working directory exists
+#     os.makedirs(working_directory, exist_ok=True)
+
+#     # Define file paths
+#     fastq_dump_file_1 = os.path.join(working_directory, f"{input_id}_1.fastq")
+#     fastq_dump_file_2 = os.path.join(working_directory, f"{input_id}_2.fastq")
+#     fastp_file_1 = os.path.join(working_directory, f"{input_id}_fastp_1.fastq")
+#     fastp_file_2 = os.path.join(working_directory, f"{input_id}_fastp_2.fastq")
+#     merged_file = os.path.join(working_directory, f"{input_id}_merged.fasta")
+#     sed_file = os.path.join(working_directory, f"{input_id}_processed.fasta")
+#     aligned_file = os.path.join(working_directory, f"{input_id}_aligned.fasta")
+
+#     print(f"Output files will be saved in: {working_directory}")
+
+#     # Step 1: Run fastq-dump to get reads (first 1000)
+#     print("\nStep 1: Running fastq-dump...")
+#     fastq_dump_command = f"fastq-dump --skip-technical --split-files -X 1000 {input_id} -O {working_directory}"
+#     if not run_command(fastq_dump_command):
+#         print("Error in fastq-dump command. Exiting.")
+#         return None
+
+#     # Debug: List files after fastq-dump
+#     print("\nListing files after fastq-dump:")
+#     run_command(f"ls -l {working_directory}")
+
+#     # Check for the presence of the files
+#     available_files = [f for f in os.listdir(working_directory) if f.endswith('.fastq')]
+    
+#     if not available_files:
+#         print("Error: No FASTQ files found after fastq-dump.")
+#         return None
+
+#     # Determine which files are available
+#     fastq_file_1_exists = f"{input_id}_1.fastq" in available_files
+#     fastq_file_2_exists = f"{input_id}_2.fastq" in available_files
+
+#     # Select files to process based on availability
+#     if fastq_file_1_exists:
+#         fastq_file_1 = fastq_dump_file_1
+#     elif fastq_file_2_exists:
+#         fastq_file_1 = fastq_dump_file_2  # Fallback if _1 doesn't exist
+#     else:
+#         print("Error: Neither _1 nor _2 FASTQ files are available for processing.")
+#         return None
+
+#     # Proceed with processing the available file
+#     try:
+#         with open(fastq_file_1) as f:
+#             read_count = sum(1 for line in f) // 4
+#         print(f"Read count from {fastq_file_1}: {read_count}")
+#     except FileNotFoundError:
+#         print(f"Error: File {fastq_file_1} not found.")
+#         return None
+
+#     if read_count < 500:
+#         error_message = f"Error: Run {input_id} has less than 500 reads and the current sample was skipped."
+#         print(error_message)
+#         return None
+
+#     # Check if we have paired-end or single-end reads
+#     is_paired = os.path.exists(fastq_dump_file_1) and os.path.exists(fastq_dump_file_2)
+#     print(f"Is paired-end: {is_paired}")
+#     print(f"File 1 exists: {os.path.exists(fastq_dump_file_1)}")
+#     print(f"File 2 exists: {os.path.exists(fastq_dump_file_2)}")
+
+#     # Step 2: Run fastp
+#     print("\nStep 2: Running fastp...")
+#     if is_paired:
+#         print("Processing paired-end reads with fastp...")
+        
+#         # Check for the existence of both files
+#         if os.path.exists(fastq_dump_file_1) and os.path.exists(fastq_dump_file_2):
+#             fastp_command = (
+#                 f"fastp --in1 {fastq_dump_file_1} --in2 {fastq_dump_file_2} "
+#                 f"--out1 {fastp_file_1} --out2 {fastp_file_2} --detect_adapter_for_pe"
+#             )
+#         else:
+#             print("One or both paired-end files not found. Exiting.")
+#             return None
+
+#     else:
+#         print("Processing single-end reads with fastp...")
+        
+#         # Check for the first file, and fallback to the second if not found
+#         if os.path.exists(fastq_dump_file_1):
+#             fastp_command = f"fastp --in1 {fastq_dump_file_1} --out1 {fastp_file_1}"
+#         elif os.path.exists(fastq_dump_file_2):
+#             print("fastq_dump_file_1 not found, using fastq_dump_file_2...")
+#             fastp_command = f"fastp --in1 {fastq_dump_file_2} --out1 {fastp_file_1}"
+#         else:
+#             print("Both fastq_dump_file_1 and fastq_dump_file_2 not found. Exiting.")
+#             return None
+
+#     # Run the fastp command
+#     if not run_command(fastp_command):
+#         print("Error in fastp command. Exiting.")
+#         return None
+
+#     # Debug: List files after fastp
+#     print("\nListing files after fastp:")
+#     run_command(f"ls -l {working_directory}")
+
+#     # Step 3: Run vsearch for paired-end reads or sed for single-end reads
+#     if is_paired:
+#         print("\nStep 3: Running vsearch to merge paired-end reads...")
+#         vsearch_command = (
+#             f"vsearch --fastq_mergepairs {fastp_file_1} --reverse {fastp_file_2} --fastaout {merged_file}"
+#         )
+#         if not run_command(vsearch_command):
+#             print("Error in vsearch command. Exiting.")
+#             return None
+#         sed_file = merged_file
+#     else:
+#         print("\nStep 3: Running sed to convert FASTQ to FASTA...")
+#         sed_command = f"sed -n '1~4s/^@/>/p;2~4p' {fastp_file_1} > {sed_file}"
+#         if not run_command(sed_command):
+#             print("Error in sed command. Exiting.")
+#             return None
+
+#     # Debug: List files after vsearch/sed
+#     print("\nListing files after vsearch/sed:")
+#     run_command(f"ls -l {working_directory}")
+
+#     # Step 4: Align reads to reference
+#     print("\nStep 4: Aligning reads to reference...")
+#     align_command = (
+#         f"mafft --thread 16 --6merpair --nuc --keeplength "
+#         f"--addfragments {sed_file} {ecoli_fa} > {aligned_file}"
+#     )
+#     if not run_command(align_command):
+#         print("Error in alignment. Exiting.")
+#         return None
+
+#     # Step 5: Process aligned file
+#     print("\nStep 5: Processing aligned file...")
+#     hvreglocator_output = process_fasta(aligned_file, threshold, input_id, include_header=True)
+
+#     return hvreglocator_output
+
+# New process_sra function to deal with problems when streaming data from fastq-dump
+
+
+
 
 def run_command_simple(command, working_directory=None):
     """A simpler run_command function without debug prints."""
@@ -395,24 +564,68 @@ def process_table(input_tsv, output_dir, threshold, combined_output_file):
     
     print(f"\nRecalculation complete. Updated results saved in: {combined_output_file}")
 
+
+# def process_id_list(id_list_file, output_dir, ecoli_fa, threshold):
+#     with open(id_list_file, 'r') as f:
+#         run_ids = [line.strip() for line in f if line.strip()]
+    
+#     combined_output_file = os.path.join(output_dir, "hvreglocator_combined_output.txt")
+#     print(f"Combined output will be saved in: {combined_output_file}")
+    
+#     with open(combined_output_file, 'w') as outfile:
+#         pass  # Just to clear the file if it exists
+    
+#     for idx, run_id in enumerate(run_ids):
+#         print(f"\nProcessing run ID: {run_id}")
+#         hvreglocator_output = process_sra(run_id, output_dir, ecoli_fa, threshold, include_header=(idx == 0))
+#         if hvreglocator_output:
+#             with open(combined_output_file, 'a') as outfile:
+#                 outfile.write(hvreglocator_output)
+    
+#     print(f"\nAll results have been combined and saved in: {combined_output_file}")
+
+
 def process_id_list(id_list_file, output_dir, ecoli_fa, threshold):
     with open(id_list_file, 'r') as f:
         run_ids = [line.strip() for line in f if line.strip()]
     
     combined_output_file = os.path.join(output_dir, "hvreglocator_combined_output.txt")
+    error_report_file = os.path.join(output_dir, "hvreglocator_error_report.txt")
+    
     print(f"Combined output will be saved in: {combined_output_file}")
+    print(f"Error report will be saved in: {error_report_file}")
     
-    with open(combined_output_file, 'w') as outfile:
-        pass  # Just to clear the file if it exists
+    with open(combined_output_file, 'w') as outfile, open(error_report_file, 'w') as errfile:
+        outfile.write("Sample_ID\tMedian_Alignment_start\tMedian_Alignment_end\tHV_region_start\tHV_region_end\tWarnings\tCov_V1\tCov_V2\tCov_V3\tCov_V4\tCov_V5\tCov_V6\tCov_V7\tCov_V8\tCov_V9\n")
+        errfile.write("Sample_ID\tError\n")
     
-    for idx, run_id in enumerate(run_ids):
+    retry_ids = []
+    for run_id in run_ids:
         print(f"\nProcessing run ID: {run_id}")
-        hvreglocator_output = process_sra(run_id, output_dir, ecoli_fa, threshold, include_header=(idx == 0))
-        if hvreglocator_output:
+        success, result = process_sra(run_id, output_dir, ecoli_fa, threshold, include_header=False)
+        
+        if success:
             with open(combined_output_file, 'a') as outfile:
-                outfile.write(hvreglocator_output)
+                outfile.write(result)
+        else:
+            print(f"Error processing {run_id}. Adding to retry list.")
+            retry_ids.append(run_id)
+    
+    # Process retry_ids
+    for run_id in retry_ids:
+        print(f"\nRetrying run ID: {run_id}")
+        success, result = process_sra(run_id, output_dir, ecoli_fa, threshold, include_header=False)
+        
+        if success:
+            with open(combined_output_file, 'a') as outfile:
+                outfile.write(result)
+        else:
+            print(f"Failed to process {run_id} after retry. Adding to error report.")
+            with open(error_report_file, 'a') as errfile:
+                errfile.write(f"{run_id}\t{result}\n")
     
     print(f"\nAll results have been combined and saved in: {combined_output_file}")
+    print(f"Error report saved in: {error_report_file}")
 
 def main():
     print("Starting HVRegLocator...")
