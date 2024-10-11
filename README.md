@@ -16,7 +16,7 @@ mamba create --prefix /global/apps/hvreglocator/0.2 -y -c bioconda python=3.9 sr
 
 ```bash
 source activate /global/apps/hvrlocator/0.2 && \
-cd /global/apps/hvrlocator/0.2 && \
+cd /global/apps/hvreglocator/0.2 && \
 git clone https://github.com/fbcorrea/hvrlocator.git && \
 cd hvrlocator && \
 pip install -e .
