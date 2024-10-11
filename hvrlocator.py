@@ -56,8 +56,8 @@ def run_command_with_retry(command, working_directory=None, max_retries=3):
             print(f"Exception occurred: {str(e)}")
         
         if attempt < max_retries - 1:
-            print(f"Retrying in 5 seconds...")
-            time.sleep(5)
+            print(f"Retrying in 3 seconds...")
+            time.sleep(3)
     
     return False, stderr.decode('utf-8') if 'stderr' in locals() else str(e)
 
@@ -602,11 +602,14 @@ def process_id_list(id_list_file, output_dir, ecoli_fa, threshold):
     retry_ids = []
     for run_id in run_ids:
         print(f"\nProcessing run ID: {run_id}")
+        start_time = time.time()
         success, result = process_sra(run_id, output_dir, ecoli_fa, threshold, include_header=False)
+        end_time = time.time()
         
         if success:
             with open(combined_output_file, 'a') as outfile:
                 outfile.write(result)
+            print(f"Time taken to process run ID {run_id}: {end_time - start_time:.2f} seconds")
         else:
             print(f"Error processing {run_id}. Adding to retry list.")
             retry_ids.append(run_id)
@@ -614,11 +617,14 @@ def process_id_list(id_list_file, output_dir, ecoli_fa, threshold):
     # Process retry_ids
     for run_id in retry_ids:
         print(f"\nRetrying run ID: {run_id}")
+        start_time = time.time()
         success, result = process_sra(run_id, output_dir, ecoli_fa, threshold, include_header=False)
+        end_time = time.time()
         
         if success:
             with open(combined_output_file, 'a') as outfile:
                 outfile.write(result)
+            print(f"Time taken to process run ID {run_id}: {end_time - start_time:.2f} seconds")
         else:
             print(f"Failed to process {run_id} after retry. Adding to error report.")
             with open(error_report_file, 'a') as errfile:
