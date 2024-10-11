@@ -1,0 +1,2 @@
+[console_scripts]
+hvrlocator = hvrlocator:main

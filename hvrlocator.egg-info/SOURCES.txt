@@ -1,0 +1,10 @@
+LICENSE
+README.md
+hvrlocator.py
+setup.py
+hvrlocator.egg-info/PKG-INFO
+hvrlocator.egg-info/SOURCES.txt
+hvrlocator.egg-info/dependency_links.txt
+hvrlocator.egg-info/entry_points.txt
+hvrlocator.egg-info/requires.txt
+hvrlocator.egg-info/top_level.txt

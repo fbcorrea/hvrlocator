@@ -20,22 +20,22 @@ regions = [
     (9, 1295, 1435)
 ]
 
-# def run_command(command, working_directory=None):
-#     print(f"Executing command: {command}")
-#     try:
-#         process = subprocess.Popen(
-#             command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, cwd=working_directory
-#         )
-#         stdout, stderr = process.communicate()
-#         if process.returncode != 0:
-#             print(f"Error executing command. Return code: {process.returncode}")
-#             print(f"Error message: {stderr.decode('utf-8')}")
-#             return False
-#         print("Command executed successfully.")
-#         return True
-#     except Exception as e:
-#         print(f"Exception occurred: {str(e)}")
-#         return False
+def run_command(command, working_directory=None):
+    print(f"Executing command: {command}")
+    try:
+        process = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, cwd=working_directory
+        )
+        stdout, stderr = process.communicate()
+        if process.returncode != 0:
+            print(f"Error executing command. Return code: {process.returncode}")
+            print(f"Error message: {stderr.decode('utf-8')}")
+            return False
+        print("Command executed successfully.")
+        return True
+    except Exception as e:
+        print(f"Exception occurred: {str(e)}")
+        return False
 
 
 def run_command_with_retry(command, working_directory=None, max_retries=3):
@@ -97,7 +97,19 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
     available_files = [f for f in os.listdir(working_directory) if f.endswith('.fastq')]
     
     if not available_files:
-        return False, f"Error: No FASTQ files found after fastq-dump for {input_id}"
+        # Check if files are in a subdirectory
+        subdirectory = os.path.join(working_directory, 'test', input_id)
+        if os.path.exists(subdirectory):
+            available_files = [f for f in os.listdir(subdirectory) if f.endswith('.fastq')]
+            if available_files:
+                # Move files to the correct directory
+                for file in available_files:
+                    os.rename(os.path.join(subdirectory, file), os.path.join(working_directory, file))
+                print(f"Moved files from {subdirectory} to {working_directory}")
+            else:
+                return False, f"Error: No FASTQ files found after fastq-dump for {input_id}"
+        else:
+            return False, f"Error: No FASTQ files found after fastq-dump for {input_id}"
 
     # Determine which files are available
     fastq_file_1_exists = f"{input_id}_1.fastq" in available_files
@@ -132,29 +144,14 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
     print("\nStep 2: Running fastp...")
     if is_paired:
         print("Processing paired-end reads with fastp...")
-        
-        # Check for the existence of both files
-        if os.path.exists(fastq_dump_file_1) and os.path.exists(fastq_dump_file_2):
-            fastp_command = (
-                f"fastp --in1 {fastq_dump_file_1} --in2 {fastq_dump_file_2} "
-                f"--out1 {fastp_file_1} --out2 {fastp_file_2} --detect_adapter_for_pe"
-            )
-        else:
-            return False, f"One or both paired-end files not found for {input_id}"
-
+        fastp_command = (
+            f"fastp --in1 {fastq_dump_file_1} --in2 {fastq_dump_file_2} "
+            f"--out1 {fastp_file_1} --out2 {fastp_file_2} --detect_adapter_for_pe"
+        )
     else:
         print("Processing single-end reads with fastp...")
-        
-        # Check for the first file, and fallback to the second if not found
-        if os.path.exists(fastq_dump_file_1):
-            fastp_command = f"fastp --in1 {fastq_dump_file_1} --out1 {fastp_file_1}"
-        elif os.path.exists(fastq_dump_file_2):
-            print("fastq_dump_file_1 not found, using fastq_dump_file_2...")
-            fastp_command = f"fastp --in1 {fastq_dump_file_2} --out1 {fastp_file_1}"
-        else:
-            return False, f"Both fastq_dump_file_1 and fastq_dump_file_2 not found for {input_id}"
+        fastp_command = f"fastp --in1 {fastq_file_1} --out1 {fastp_file_1}"
 
-    # Run the fastp command
     if not run_command(fastp_command):
         return False, f"Error in fastp command for {input_id}"
 
@@ -348,18 +345,6 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
 
 # New process_sra function to deal with problems when streaming data from fastq-dump
 
-
-
-
-def run_command_simple(command, working_directory=None):
-    """A simpler run_command function without debug prints."""
-    try:
-        subprocess.run(
-            command, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=working_directory
-        )
-        return True
-    except subprocess.CalledProcessError:
-        return False
 
 def process_fasta(input_fasta, threshold, sample_id, include_header=True):
     print(f"Processing FASTA file: {input_fasta}")

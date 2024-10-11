@@ -1,0 +1,9 @@
+Metadata-Version: 2.1
+Name: hvrlocator
+Version: 0.2
+Requires-Python: >=3.7
+License-File: LICENSE
+Requires-Dist: biopython
+Requires-Dist: numpy
+Requires-Dist: scipy
+Requires-Dist: matplotlib
