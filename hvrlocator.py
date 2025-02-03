@@ -376,9 +376,13 @@ def process_fasta(input_fasta, threshold, sample_id, include_header=True):
     # Calculate median start and end positions
     median_start = int(statistics.median(alignment_start))
     median_end = int(statistics.median(alignment_end))
+    min_start = min(alignment_start)
+    max_end = max(alignment_end)
     
     print(f"Median start position: {median_start}")
     print(f"Median end position: {median_end}")
+     print(f"Minimum start position: {min_start}")
+    print(f"Maximum end position: {max_end}")
     
     # Calculate coverage for all regions
     coverage_details = {}
@@ -431,7 +435,7 @@ def process_fasta(input_fasta, threshold, sample_id, include_header=True):
         warning_message = ""
     
     # Create TSV output
-    headers = ["Sample_ID", "Median_Alignment_start", "Median_Alignment_end", 
+    headers = ["Sample_ID", "Median_Alignment_start", "Median_Alignment_end", "Min_Alignment_start", "Max_Alignment_end",
                "HV_region_start", "HV_region_end", 
                "Warnings"]
     
@@ -445,7 +449,9 @@ def process_fasta(input_fasta, threshold, sample_id, include_header=True):
     values = [
         sample_id, 
         median_start, 
-        median_end, 
+        median_end,
+        min_start,
+        max_end,
         hv_region_start, 
         hv_region_end,
         warning_message
@@ -470,17 +476,31 @@ def process_table(input_tsv, output_dir, threshold, combined_output_file):
     with open(input_tsv, 'r') as infile:
         reader = csv.DictReader(infile, delimiter='\t')
         fieldnames = reader.fieldnames
-        required_fields = ["Sample_ID", "Median_Alignment_start", "Median_Alignment_end", 
-                           "HV_region_start", "HV_region_end", "Warnings"] + [f"Cov_V{rn}" for rn in range(1, 10)]
+        required_fields = [
+           "Sample_ID", 
+           "Median_Alignment_start",
+           "Median_Alignment_end",
+           "Min_Alignment_start",
+           "Max_Alignment_end",
+           "HV_region_start",
+           "HV_region_end",
+            "Warnings"
+       ] + [f"Cov_V{rn}" for rn in range(1, 10)]
         
         if not all(field in fieldnames for field in required_fields):
             print("Error: Input TSV file is missing required columns.")
             sys.exit(1)
     
-        combined_headers = ["Sample_ID", "Median_Alignment_start", "Median_Alignment_end", 
-                            "HV_region_start", "HV_region_end", 
-                            "Warnings"] + [f"Cov_V{rn}" for rn in range(1, 10)]
-    
+        combined_headers = [
+           "Sample_ID",
+           "Median_Alignment_start",
+           "Median_Alignment_end",
+           "Min_Alignment_start",
+           "Max_Alignment_end",
+           "HV_region_start",
+           "HV_region_end",
+           "Warnings"
+       ] + [f"Cov_V{rn}" for rn in range(1, 10)]
         with open(combined_output_file, 'w', newline='') as outfile:
             writer = csv.DictWriter(outfile, fieldnames=combined_headers, delimiter='\t')
             writer.writeheader()
@@ -489,6 +509,8 @@ def process_table(input_tsv, output_dir, threshold, combined_output_file):
                 sample_id = row["Sample_ID"]
                 median_start = int(row["Median_Alignment_start"])
                 median_end = int(row["Median_Alignment_end"])
+                min_alignment_start = int(row["Min_Alignment_start"])
+                max_alignment_end = int(row["Max_Alignment_end"])
                 
                 # Extract coverage details
                 coverage_details = {}
@@ -535,6 +557,8 @@ def process_table(input_tsv, output_dir, threshold, combined_output_file):
                     "Sample_ID": sample_id,
                     "Median_Alignment_start": median_start,
                     "Median_Alignment_end": median_end,
+                    "Min_Alignment_start": min_alignment_start,
+                    "Max_Alignment_end": max_alignment_end,
                     "HV_region_start": hv_region_start,
                     "HV_region_end": hv_region_end,
                     "Warnings": warning_message
