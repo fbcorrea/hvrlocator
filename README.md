@@ -5,7 +5,7 @@ HVR Locator is a workflow to identify spanning hypervariable region(s) from ampl
 ## Using Singularity to run HVRlocator (Recommended)
 
 
-1. Download the singularity image (hvrlocator.sif) to your local folder:
+1. Download the singularity image (*hvrlocator.sif*) to your local folder:
 
 ## Usage
 
@@ -39,7 +39,7 @@ You can specify the location of the E. coli reference file if it's not in the de
 singularity exec hvrlocator.sif hvrlocator sra -l /path/to/list.txt --ecoli /path/to/ecoli.fa -o /path/to/output/folder
 ```
 
-#Note: The list of SRA runs should be 1 per line.
+**Note**: The list of SRA runs should be 1 per line.
 
 
 ### Processing ASV FASTA Files
