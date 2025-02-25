@@ -193,159 +193,6 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
 
     return True, hvreglocator_output
 
-
-
-
-# Old function that works but if the connection is lost, we have a problem
-
-# def process_sra(input_id, output_dir, ecoli_fa, threshold, include_header=True):
-#     print(f"Processing SRA data for ID: {input_id}")
-#     working_directory = os.path.join(output_dir, input_id)
-#     print(f"Working directory: {working_directory}")
-#     print(f"E. coli reference file: {ecoli_fa}")
-
-#     # Ensure working directory exists
-#     os.makedirs(working_directory, exist_ok=True)
-
-#     # Define file paths
-#     fastq_dump_file_1 = os.path.join(working_directory, f"{input_id}_1.fastq")
-#     fastq_dump_file_2 = os.path.join(working_directory, f"{input_id}_2.fastq")
-#     fastp_file_1 = os.path.join(working_directory, f"{input_id}_fastp_1.fastq")
-#     fastp_file_2 = os.path.join(working_directory, f"{input_id}_fastp_2.fastq")
-#     merged_file = os.path.join(working_directory, f"{input_id}_merged.fasta")
-#     sed_file = os.path.join(working_directory, f"{input_id}_processed.fasta")
-#     aligned_file = os.path.join(working_directory, f"{input_id}_aligned.fasta")
-
-#     print(f"Output files will be saved in: {working_directory}")
-
-#     # Step 1: Run fastq-dump to get reads (first 1000)
-#     print("\nStep 1: Running fastq-dump...")
-#     fastq_dump_command = f"fastq-dump --skip-technical --split-files -X 1000 {input_id} -O {working_directory}"
-#     if not run_command(fastq_dump_command):
-#         print("Error in fastq-dump command. Exiting.")
-#         return None
-
-#     # Debug: List files after fastq-dump
-#     print("\nListing files after fastq-dump:")
-#     run_command(f"ls -l {working_directory}")
-
-#     # Check for the presence of the files
-#     available_files = [f for f in os.listdir(working_directory) if f.endswith('.fastq')]
-    
-#     if not available_files:
-#         print("Error: No FASTQ files found after fastq-dump.")
-#         return None
-
-#     # Determine which files are available
-#     fastq_file_1_exists = f"{input_id}_1.fastq" in available_files
-#     fastq_file_2_exists = f"{input_id}_2.fastq" in available_files
-
-#     # Select files to process based on availability
-#     if fastq_file_1_exists:
-#         fastq_file_1 = fastq_dump_file_1
-#     elif fastq_file_2_exists:
-#         fastq_file_1 = fastq_dump_file_2  # Fallback if _1 doesn't exist
-#     else:
-#         print("Error: Neither _1 nor _2 FASTQ files are available for processing.")
-#         return None
-
-#     # Proceed with processing the available file
-#     try:
-#         with open(fastq_file_1) as f:
-#             read_count = sum(1 for line in f) // 4
-#         print(f"Read count from {fastq_file_1}: {read_count}")
-#     except FileNotFoundError:
-#         print(f"Error: File {fastq_file_1} not found.")
-#         return None
-
-#     if read_count < 500:
-#         error_message = f"Error: Run {input_id} has less than 500 reads and the current sample was skipped."
-#         print(error_message)
-#         return None
-
-#     # Check if we have paired-end or single-end reads
-#     is_paired = os.path.exists(fastq_dump_file_1) and os.path.exists(fastq_dump_file_2)
-#     print(f"Is paired-end: {is_paired}")
-#     print(f"File 1 exists: {os.path.exists(fastq_dump_file_1)}")
-#     print(f"File 2 exists: {os.path.exists(fastq_dump_file_2)}")
-
-#     # Step 2: Run fastp
-#     print("\nStep 2: Running fastp...")
-#     if is_paired:
-#         print("Processing paired-end reads with fastp...")
-        
-#         # Check for the existence of both files
-#         if os.path.exists(fastq_dump_file_1) and os.path.exists(fastq_dump_file_2):
-#             fastp_command = (
-#                 f"fastp --in1 {fastq_dump_file_1} --in2 {fastq_dump_file_2} "
-#                 f"--out1 {fastp_file_1} --out2 {fastp_file_2} --detect_adapter_for_pe"
-#             )
-#         else:
-#             print("One or both paired-end files not found. Exiting.")
-#             return None
-
-#     else:
-#         print("Processing single-end reads with fastp...")
-        
-#         # Check for the first file, and fallback to the second if not found
-#         if os.path.exists(fastq_dump_file_1):
-#             fastp_command = f"fastp --in1 {fastq_dump_file_1} --out1 {fastp_file_1}"
-#         elif os.path.exists(fastq_dump_file_2):
-#             print("fastq_dump_file_1 not found, using fastq_dump_file_2...")
-#             fastp_command = f"fastp --in1 {fastq_dump_file_2} --out1 {fastp_file_1}"
-#         else:
-#             print("Both fastq_dump_file_1 and fastq_dump_file_2 not found. Exiting.")
-#             return None
-
-#     # Run the fastp command
-#     if not run_command(fastp_command):
-#         print("Error in fastp command. Exiting.")
-#         return None
-
-#     # Debug: List files after fastp
-#     print("\nListing files after fastp:")
-#     run_command(f"ls -l {working_directory}")
-
-#     # Step 3: Run vsearch for paired-end reads or sed for single-end reads
-#     if is_paired:
-#         print("\nStep 3: Running vsearch to merge paired-end reads...")
-#         vsearch_command = (
-#             f"vsearch --fastq_mergepairs {fastp_file_1} --reverse {fastp_file_2} --fastaout {merged_file}"
-#         )
-#         if not run_command(vsearch_command):
-#             print("Error in vsearch command. Exiting.")
-#             return None
-#         sed_file = merged_file
-#     else:
-#         print("\nStep 3: Running sed to convert FASTQ to FASTA...")
-#         sed_command = f"sed -n '1~4s/^@/>/p;2~4p' {fastp_file_1} > {sed_file}"
-#         if not run_command(sed_command):
-#             print("Error in sed command. Exiting.")
-#             return None
-
-#     # Debug: List files after vsearch/sed
-#     print("\nListing files after vsearch/sed:")
-#     run_command(f"ls -l {working_directory}")
-
-#     # Step 4: Align reads to reference
-#     print("\nStep 4: Aligning reads to reference...")
-#     align_command = (
-#         f"mafft --thread 16 --6merpair --nuc --keeplength "
-#         f"--addfragments {sed_file} {ecoli_fa} > {aligned_file}"
-#     )
-#     if not run_command(align_command):
-#         print("Error in alignment. Exiting.")
-#         return None
-
-#     # Step 5: Process aligned file
-#     print("\nStep 5: Processing aligned file...")
-#     hvreglocator_output = process_fasta(aligned_file, threshold, input_id, include_header=True)
-
-#     return hvreglocator_output
-
-# New process_sra function to deal with problems when streaming data from fastq-dump
-
-
 def process_fasta(input_fasta, threshold, sample_id, include_header=True):
     print(f"Processing FASTA file: {input_fasta}")
     fasta_sequences = list(SeqIO.parse(input_fasta, 'fasta'))
@@ -377,10 +224,21 @@ def process_fasta(input_fasta, threshold, sample_id, include_header=True):
     median_start = int(statistics.median(alignment_start))
     median_end = int(statistics.median(alignment_end))
     
+    # Calculate average start and end positions
+    average_start = int(round(statistics.mean(alignment_start)))
+    average_end = int(round(statistics.mean(alignment_end)))
+    
+    min_start = min(alignment_start)
+    max_end = max(alignment_end)
+    
     print(f"Median start position: {median_start}")
     print(f"Median end position: {median_end}")
+    print(f"Average start position: {average_start}")
+    print(f"Average end position: {average_end}")
+    print(f"Minimum start position: {min_start}")
+    print(f"Maximum end position: {max_end}")
     
-    # Calculate coverage for all regions
+    # Calculate coverage for all regions using the median values
     coverage_details = {}
     for region_num, region_start, region_end in regions:
         hv_length = region_end - region_start + 1
@@ -411,7 +269,6 @@ def process_fasta(input_fasta, threshold, sample_id, include_header=True):
     else:
         # Assign the region with the highest coverage if no regions meet the threshold
         max_coverage_region = max(coverage_details, key=coverage_details.get)
-        max_coverage = coverage_details[max_coverage_region]
         hv_region_start = f"V{max_coverage_region}"
         hv_region_end = f"V{max_coverage_region}"
     
@@ -430,10 +287,19 @@ def process_fasta(input_fasta, threshold, sample_id, include_header=True):
     else:
         warning_message = ""
     
-    # Create TSV output
-    headers = ["Sample_ID", "Median_Alignment_start", "Median_Alignment_end", 
-               "HV_region_start", "HV_region_end", 
-               "Warnings"]
+    # Create TSV output with additional columns for average positions
+    headers = [
+        "Sample_ID", 
+        "Median_Alignment_start", 
+        "Median_Alignment_end", 
+        "Average_Alignment_start",
+        "Average_Alignment_end",
+        "Min_Alignment_start", 
+        "Max_Alignment_end",
+        "HV_region_start", 
+        "HV_region_end", 
+        "Warnings"
+    ]
     
     # Add coverage details per region as new columns with prefix Cov_
     coverage_columns = [f"Cov_V{rn}" for rn in range(1, 10)]
@@ -445,7 +311,11 @@ def process_fasta(input_fasta, threshold, sample_id, include_header=True):
     values = [
         sample_id, 
         median_start, 
-        median_end, 
+        median_end,
+        average_start,
+        average_end,
+        min_start,
+        max_end,
         hv_region_start, 
         hv_region_end,
         warning_message
@@ -470,25 +340,47 @@ def process_table(input_tsv, output_dir, threshold, combined_output_file):
     with open(input_tsv, 'r') as infile:
         reader = csv.DictReader(infile, delimiter='\t')
         fieldnames = reader.fieldnames
-        required_fields = ["Sample_ID", "Median_Alignment_start", "Median_Alignment_end", 
-                           "HV_region_start", "HV_region_end", "Warnings"] + [f"Cov_V{rn}" for rn in range(1, 10)]
+        required_fields = [
+           "Sample_ID", 
+           "Average_Alignment_start",
+           "Average_Alignment_end",
+           "Median_Alignment_start",
+           "Median_Alignment_end",
+           "Min_Alignment_start",
+           "Max_Alignment_end",
+           "HV_region_start",
+           "HV_region_end",
+            "Warnings"
+       ] + [f"Cov_V{rn}" for rn in range(1, 10)]
         
         if not all(field in fieldnames for field in required_fields):
             print("Error: Input TSV file is missing required columns.")
             sys.exit(1)
     
-        combined_headers = ["Sample_ID", "Median_Alignment_start", "Median_Alignment_end", 
-                            "HV_region_start", "HV_region_end", 
-                            "Warnings"] + [f"Cov_V{rn}" for rn in range(1, 10)]
-    
+        combined_headers = [
+           "Sample_ID",
+           "Average_Alignment_start",
+           "Average_Alignment_end",
+           "Median_Alignment_start",
+           "Median_Alignment_end",
+           "Min_Alignment_start",
+           "Max_Alignment_end",
+           "HV_region_start",
+           "HV_region_end",
+           "Warnings"
+       ] + [f"Cov_V{rn}" for rn in range(1, 10)]
         with open(combined_output_file, 'w', newline='') as outfile:
             writer = csv.DictWriter(outfile, fieldnames=combined_headers, delimiter='\t')
             writer.writeheader()
             
             for row in reader:
                 sample_id = row["Sample_ID"]
+                average_start = int(row["Average_Alignment_start"])
+                average_end = int(row["Average_Alignment_end"])
                 median_start = int(row["Median_Alignment_start"])
                 median_end = int(row["Median_Alignment_end"])
+                min_alignment_start = int(row["Min_Alignment_start"])
+                max_alignment_end = int(row["Max_Alignment_end"])
                 
                 # Extract coverage details
                 coverage_details = {}
@@ -533,8 +425,12 @@ def process_table(input_tsv, output_dir, threshold, combined_output_file):
                 # Prepare the new row
                 new_row = {
                     "Sample_ID": sample_id,
+                    "Average_Alignment_start": average_start,
+                    "Average_Alignment_end": average_end,
                     "Median_Alignment_start": median_start,
                     "Median_Alignment_end": median_end,
+                    "Min_Alignment_start": min_alignment_start,
+                    "Max_Alignment_end": max_alignment_end,
                     "HV_region_start": hv_region_start,
                     "HV_region_end": hv_region_end,
                     "Warnings": warning_message
@@ -550,26 +446,6 @@ def process_table(input_tsv, output_dir, threshold, combined_output_file):
     print(f"\nRecalculation complete. Updated results saved in: {combined_output_file}")
 
 
-# def process_id_list(id_list_file, output_dir, ecoli_fa, threshold):
-#     with open(id_list_file, 'r') as f:
-#         run_ids = [line.strip() for line in f if line.strip()]
-    
-#     combined_output_file = os.path.join(output_dir, "hvreglocator_combined_output.txt")
-#     print(f"Combined output will be saved in: {combined_output_file}")
-    
-#     with open(combined_output_file, 'w') as outfile:
-#         pass  # Just to clear the file if it exists
-    
-#     for idx, run_id in enumerate(run_ids):
-#         print(f"\nProcessing run ID: {run_id}")
-#         hvreglocator_output = process_sra(run_id, output_dir, ecoli_fa, threshold, include_header=(idx == 0))
-#         if hvreglocator_output:
-#             with open(combined_output_file, 'a') as outfile:
-#                 outfile.write(hvreglocator_output)
-    
-#     print(f"\nAll results have been combined and saved in: {combined_output_file}")
-
-
 def process_id_list(id_list_file, output_dir, ecoli_fa, threshold):
     with open(id_list_file, 'r') as f:
         run_ids = [line.strip() for line in f if line.strip()]
@@ -581,7 +457,7 @@ def process_id_list(id_list_file, output_dir, ecoli_fa, threshold):
     print(f"Error report will be saved in: {error_report_file}")
     
     with open(combined_output_file, 'w') as outfile, open(error_report_file, 'w') as errfile:
-        outfile.write("Sample_ID\tMedian_Alignment_start\tMedian_Alignment_end\tHV_region_start\tHV_region_end\tWarnings\tCov_V1\tCov_V2\tCov_V3\tCov_V4\tCov_V5\tCov_V6\tCov_V7\tCov_V8\tCov_V9\n")
+        outfile.write("Sample_ID\tAverage_Alignment_start\tAverage_Alignment_end\tMedian_Alignment_start\tMedian_Alignment_end\tHV_region_start\tHV_region_end\tWarnings\tCov_V1\tCov_V2\tCov_V3\tCov_V4\tCov_V5\tCov_V6\tCov_V7\tCov_V8\tCov_V9\n")
         errfile.write("Sample_ID\tError\n")
     
     retry_ids = []
