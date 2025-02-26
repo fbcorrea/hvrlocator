@@ -586,7 +586,7 @@ def main():
                 # Write to a single output file named after the run ID
                 output_file = os.path.join(args.output_dir, f"{args.run_id}_hvreglocator_output.txt")
                 with open(output_file, 'w') as f:
-                    f.write(hvreglocator_output)
+                    f.write("\t".join(map(str, hvreglocator_output)) + "\n")
                 print(f"Final output saved in: {output_file}")
         else:
             print("Error: The 'sra' command requires either --run-id or --list-file argument")
