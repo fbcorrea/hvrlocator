@@ -109,15 +109,15 @@ hvreglocator fasta -f path/to/your/asv_sequences.fasta
 ## Output
 The following columns are shown in the output table:
 
-•	Sample_ID: Identifier of the processed sample. 
-•	Primer_Presence: "Yes", "No", or "NA" depending on model output and input quality. 
-•	Score_Primer_Presence: Probability output from the Random Forest model.
-•	Median/Avg/Min/Max Alignment Start/End: Various statistics on read alignment positions. 
-•	Predicted HV Region: Based on alignment range irrespective of threshold.
-•	Coverage-based HV Region: Based on which V-regions passed the specified coverage threshold.
-•	Coverage_HV_region: Coverage value of V-regions.
-•	Warnings: Alerts about low coverage regions. 
-•	Cov_V1 to Cov_V9: Coverage values (0-1) for each HV region. 
+**•	Sample_ID:** Identifier of the processed sample.<br/>
+**•	Primer_Presence:** "Yes", "No", or "NA" depending on model output and input quality.<br/>
+**•	Score_Primer_Presence:** Probability output from the Random Forest model.<br/>
+**•	Median/Avg/Min/Max Alignment Start/End:** Various statistics on read alignment positions.<br/>
+**•	Predicted HV Region:** Based on alignment range irrespective of threshold.<br/>
+**•	Coverage-based HV Region:** Based on which V-regions passed the specified coverage threshold.<br/>
+**•	Coverage_HV_region:** Coverage value of V-regions.<br/>
+**•	Warnings:** Alerts about low coverage regions.<br/>
+**•	Cov_V1 to Cov_V9:** Coverage values (0-1) for each HV region.<br/>
 
 
 ## Project Structure
