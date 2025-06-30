@@ -6,7 +6,9 @@ HVR Locator is a workflow to identify spanning hypervariable region(s) from ampl
 
 
 1. Download the singularity image (*hvrlocator.sif*) to your local folder from the following location:
-Go to <https://cloud.sylabs.io/library/jsaraiva/repo/hvrlocator> ## or
+Go to <https://cloud.sylabs.io/library/jsaraiva/repo/hvrlocator>
+
+# OR
 
 Paste the following command in your terminal:
 
