@@ -8,7 +8,7 @@ HVR Locator is a workflow to identify spanning hypervariable region(s) from ampl
 1. Download the singularity image (*hvrlocator.sif*) to your local folder from the following location:
 Go to <https://cloud.sylabs.io/library/jsaraiva/repo/hvrlocator>
 
-# OR
+**OR**
 
 Paste the following command in your terminal:
 ```
@@ -107,17 +107,51 @@ hvreglocator fasta -f path/to/your/asv_sequences.fasta
 ```
 
 ## Output
+The following columns are shown in the output table:
 
-The script will output the alignment start and end positions, as well as the identified hypervariable region span (e.g., V1-V3).
+•	Sample_ID: Identifier of the processed sample. 
+•	Primer_Presence: "Yes", "No", or "NA" depending on model output and input quality. 
+•	Score_Primer_Presence: Probability output from the Random Forest model.
+•	Median/Avg/Min/Max Alignment Start/End: Various statistics on read alignment positions. 
+•	Predicted HV Region: Based on alignment range irrespective of threshold.
+•	Coverage-based HV Region: Based on which V-regions passed the specified coverage threshold.
+•	Coverage_HV_region: Coverage value of V-regions.
+•	Warnings: Alerts about low coverage regions. 
+•	Cov_V1 to Cov_V9: Coverage values (0-1) for each HV region. 
+
 
 ## Project Structure
 
 - `hvreglocator.py`: The main script that handles both SRA and FASTA processing.
 - `setup.py`: Used for installing the package.
 
-## Troubleshooting
+## Possible Errors and Troubleshooting
+**1. FastQ Files Not Found** <br/>
+***Error Message:** Error: No FASTQ files found after fastq-dump*<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;•	Ensure that the SRA Run ID is valid.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;•	Check your internet connection for downloading SRA data.<br/>
+**2. Low Read Count**<br/>
+***Error Message:** Error: Run ID has less than 500 reads and the current sample was skipped*<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;•	Some SRA runs may have low-quality reads or failed sequencing runs.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;•	Consider increasing the read limit in fastq-dump.<br/>
+**3. Alignment Issues**<br/>
+***Error Message:*** *Error in alignment for ``<ID>``*<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;•	Ensure mafft is installed and available in the system path.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;•	Check if the reference FASTA file (ecoli.fa) is correctly formatted.<br/>
+**4. Coverage Too Low for HV Region Assignment**<br/>
+***Error Message:** No valid alignment positions*<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;•	Reads may not align properly due to sequencing quality or reference differences.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;•	Check whether trimming parameters in fastp are too strict.<br/>
+**5. Missing Columns in TSV Processing**<br/>
+***Error Message:** Error: Input TSV file is missing required columns*<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;•	Ensure the input TSV file matches the expected column structure.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;•	Check if the file was manually edited and lost required fields.<br/>
+**6. Model Prediction Issues**<br/>
+***Error Message:** Model error: No module named ``'sklearn'``*<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;•	Ensure your container or environment includes scikit-learn.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;•	Verify the Random Forest model path with --model is correct and readable. <br/>
 
-If you encounter any issues with finding the E. coli reference file, make sure it's in the same directory as the `hvreglocator.py` script, or use the `--ecoli` argument to specify its location.
+
 
 ## Contributing
 
