@@ -121,6 +121,9 @@ The following columns are shown in the output table:
 **•	Warnings:** Alerts about low coverage regions.<br/>
 **•	Cov_V1 to Cov_V9:** Coverage values (0-1) for each HV region.<br/>
 
+## Random Forest Model
+
+A detailed description of the Random Forest model generation is available at < XXX>
 
 ## Project Structure
 
