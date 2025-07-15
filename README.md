@@ -58,7 +58,7 @@ To process a FASTA file containing ASV sequences:
 hvreglocator fasta -f path/to/your/asv_sequences.fasta --ecoli /path/to/ecoli.fa -o /path/to/output/folder
 ```
 
-### To modify the coverage threshold (default = 0.6) add the "-t flag at the end pf the command (e.g. -t 0.7)" 
+### To modify the coverage threshold (default = 0.6) add the "*-t*" flag at the end pf the command (e.g. -t 0.7)" 
 
 ## Local Installation (Alternative)
 
