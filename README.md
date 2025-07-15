@@ -123,7 +123,7 @@ The following columns are shown in the output table:
 
 ## Random Forest Model
 
-A detailed description of the Random Forest model generation is available at < XXX>
+A detailed description of the Random Forest model generation is available [here](https://github.com/fbcorrea/hvrlocator/blob/main/Random%20Forest%20Model%20for%20Primer%20Presence%20Prediction.docx).
 
 ## Project Structure
 
