@@ -199,7 +199,7 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, model_path=None, incl
     if not run_command(cmd):
         return False, f"Error in alignment for {input_id}"
 
-    output_line = process_fasta(aligned, threshold, input_id, include_header, primer_flag, primer_score)
+    output_line = process_fasta(aligned, threshold, input_id, include_header=include_header, primer_flag=primer_flag, primer_score=primer_score)
     return True, output_line
 
 def process_fasta(input_fasta, threshold, sample_id, include_header=True, model_path=None, primer_flag='NA', primer_score='NA'):
