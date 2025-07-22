@@ -67,7 +67,7 @@ To install HVR Locator locally, follow these steps:
 1. Create a new conda environment:
 
 ```bash
-mamba create -n <ENV_NAME> -y -c bioconda python=3.9 sra-tools fastp biopython numpy scipy vsearch
+mamba create -n <ENV_NAME> -y -c bioconda -c conda-forge python=3.9 sra-tools fastp biopython numpy scipy vsearch
 ```
 ***Note***: Replace the **ENV_NAME** with a name of your choosing.
 
