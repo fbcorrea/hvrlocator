@@ -202,19 +202,31 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, model_path=None, incl
     output_line = process_fasta(aligned, threshold, input_id, include_header, primer_flag, primer_score)
     return True, output_line
 
-def process_fasta(input_fasta, threshold, sample_id, include_header=True,model_path=None, primer_flag='NA', primer_score='NA'):
-     if model_path and os.path.exists(model_path) and (
-        input_fasta.endswith(".fastq") or input_fasta.endswith(".fq") or input_fasta.endswith(".fastq.gz")
+def process_fasta(
+    input_fasta: str,
+    threshold: float,
+    sample_id: str,
+    include_header: bool = True,
+    model_path: str = None,
+    primer_flag: str = "NA",
+    primer_score: str = "NA",
+):
+    
+    if (
+        model_path
+        and os.path.exists(model_path)
+        and input_fasta.endswith((".fastq", ".fq", ".fastq.gz"))
     ):
         try:
             rf_model = joblib.load(model_path)
             s1, s2 = [], []
-            # Use FastqGeneralIterator for speed; handles plain FASTQ (not gz)
-            # If gzipped, you'd need to open with gzip.open
+
             opener = open
             if input_fasta.endswith(".gz"):
                 import gzip
                 opener = gzip.open
+
+            from Bio.SeqIO.QualityIO import FastqGeneralIterator  # ensure local import
 
             with opener(input_fasta, "rt") as fh:
                 for header, seq, qual in FastqGeneralIterator(fh):
@@ -225,26 +237,31 @@ def process_fasta(input_fasta, threshold, sample_id, include_header=True,model_p
 
             if s1 and s2:
                 a1, a2 = np.array(s1), np.array(s2)
-                m1 = get_stats(a1, prefix='1_5')
-                m2 = get_stats(a2, prefix='6_10')
-                feat = [m1[c] for c in FEATURE_COLUMNS[:8]] + [m2[c] for c in FEATURE_COLUMNS[8:]]
+                m1 = get_stats(a1, prefix="1_5")
+                m2 = get_stats(a2, prefix="6_10")
+                feat = [m1[c] for c in FEATURE_COLUMNS[:8]] + [
+                    m2[c] for c in FEATURE_COLUMNS[8:]
+                ]
                 proba = rf_model.predict_proba([feat])[0][1]
-                primer_flag = 'TRUE' if proba > 0.5 else 'FALSE'
+                primer_flag = "TRUE" if proba > 0.5 else "FALSE"
                 primer_score = f"{proba:.3f}"
             else:
-                print("Warning: Not enough quality scores to compute primer features; leaving primer fields as NA.")
+                print(
+                    "Warning: Not enough quality scores to compute primer features; leaving primer fields as NA."
+                )
         except Exception as e:
             print(f"Model error: {e}")
-    
-    seqs = list(SeqIO.parse(input_fasta, 'fasta'))
+
+   
+    seqs = list(SeqIO.parse(input_fasta, "fasta"))
     if len(seqs) < 2:
         return "Error\tInsufficient sequences\n"
 
     starts, ends = [], []
     for rec in seqs:
         s = str(rec.seq)
-        start = next((i for i,c in enumerate(s) if c != '-'), None)
-        end = len(s) - next((i for i,c in enumerate(reversed(s)) if c != '-'), None) - 1
+        start = next((i for i, c in enumerate(s) if c != "-"), None)
+        end = len(s) - next((i for i, c in enumerate(reversed(s)) if c != "-"), None) - 1
         if start is not None and end is not None:
             starts.append(start)
             ends.append(end)
@@ -262,45 +279,68 @@ def process_fasta(input_fasta, threshold, sample_id, include_header=True,model_p
         overlap = max(0, min(med_e, r1) - max(med_s, r0) + 1)
         covs[num] = overlap / length
 
-    covered = [n for n,c in covs.items() if c >= threshold]
+    covered = [n for n, c in covs.items() if c >= threshold]
     if covered:
-        hv_s = f"V{min(covered)}"; hv_e = f"V{max(covered)}"
+        hv_s = f"V{min(covered)}"
+        hv_e = f"V{max(covered)}"
     else:
         m = max(covs, key=covs.get)
         hv_s = hv_e = f"V{m}"
 
-    below = [n for n,c in covs.items() if 0 < c < threshold]
+    below = [n for n, c in covs.items() if 0 < c < threshold]
     if below:
         if len(below) == 1:
             warn = f"V{below[0]} below threshold of {threshold}"
         elif len(below) == 2:
             warn = f"V{below[0]} and V{below[1]} below threshold of {threshold}"
         else:
-            lst = ", ".join(f"V{n}" for n in below[:-1])
-            warn = f"{lst}, and V{below[-1]} below threshold of {threshold}"
+            warn = f"{', '.join(f'V{n}' for n in below[:-1])}, and V{below[-1]} below threshold of {threshold}"
     else:
         warn = ""
 
-    ps_num = next((n for n,r0,r1 in regions if r0 <= med_s <= r1), None)
-    pe_num = next((n for n,r0,r1 in regions if r0 <= med_e <= r1), None)
-    ps = f"V{ps_num}" if ps_num else ""; pe = f"V{pe_num}" if pe_num else ""
-    cov_ps = covs.get(ps_num, 0.0); cov_pe = covs.get(pe_num, 0.0)
+    ps_num = next((n for n, r0, r1 in regions if r0 <= med_s <= r1), None)
+    pe_num = next((n for n, r0, r1 in regions if r0 <= med_e <= r1), None)
+    ps = f"V{ps_num}" if ps_num else ""
+    pe = f"V{pe_num}" if pe_num else ""
+    cov_ps = covs.get(ps_num, 0.0)
+    cov_pe = covs.get(pe_num, 0.0)
 
     headers = [
-       "Sample_ID", "Primer_Presence", "Score_Primer_Presence",
-        "Min_Alignment_start", "Max_Alignment_end",
-        "Average_Alignment_start", "Average_Alignment_end",
-        "Median_Alignment_start", "Median_Alignment_end",
-        "Predicted_HV_region_start", "Predicted_HV_region_end",
-        "Coverage_based_HV_region_start", "Coverage_based_HV_region_end",
-        "Coverage_HV_region_start", "Coverage_HV_region_end",
-        "Warnings"
-    ] + [f"Cov_V{n}" for n in range(1, 10)] 
+        "Sample_ID",
+        "Primer_Presence",
+        "Score_Primer_Presence",
+        "Min_Alignment_start",
+        "Max_Alignment_end",
+        "Average_Alignment_start",
+        "Average_Alignment_end",
+        "Median_Alignment_start",
+        "Median_Alignment_end",
+        "Predicted_HV_region_start",
+        "Predicted_HV_region_end",
+        "Coverage_based_HV_region_start",
+        "Coverage_based_HV_region_end",
+        "Coverage_HV_region_start",
+        "Coverage_HV_region_end",
+        "Warnings",
+    ] + [f"Cov_V{n}" for n in range(1, 10)]
+
     values = [
-        sample_id, primer_flag, primer_score,
-        min_s, max_e,avg_s, avg_e, med_s, med_e,
-        ps, pe, hv_s, hv_e,
-        f"{cov_ps:.2f}", f"{cov_pe:.2f}", warn
+        sample_id,
+        primer_flag,
+        primer_score,
+        min_s,
+        max_e,
+        avg_s,
+        avg_e,
+        med_s,
+        med_e,
+        ps,
+        pe,
+        hv_s,
+        hv_e,
+        f"{cov_ps:.2f}",
+        f"{cov_pe:.2f}",
+        warn,
     ] + [f"{covs[n]:.2f}" for n in range(1, 10)]
 
     if include_header:
