@@ -91,13 +91,13 @@ HVRegLocator can process both SRA accession numbers and FASTA files containing A
 To process an SRA run:
 
 ```bash
-hvreglocator sra -r SRR1585194
+hvrlocator sra -r SRR1585194 -o /path/to/output_folder
 ```
 
 You can specify the location of the E. coli reference file if it's not in the default location:
 
 ```bash
-hvreglocator sra -r SRR1585194 --ecoli /path/to/ecoli.fa
+hvrlocator sra -r SRR1585194 --ecoli /path/to/ecoli.fa -o /path/to/output_folder
 ```
 
 ### Processing ASV FASTA Files
@@ -105,7 +105,7 @@ hvreglocator sra -r SRR1585194 --ecoli /path/to/ecoli.fa
 To process a FASTA file containing ASV sequences:
 
 ```bash
-hvreglocator fasta -f path/to/your/asv_sequences.fasta
+hvrlocator fasta -f path/to/your/asv_sequences.fasta
 ```
 
 ## Output
@@ -127,7 +127,7 @@ A detailed description of the Random Forest model generation is available [here]
 
 ## Project Structure
 
-- `hvreglocator.py`: The main script that handles both SRA and FASTA processing.
+- `hvrlocator.py`: The main script that handles both SRA and FASTA processing.
 - `setup.py`: Used for installing the package.
 
 ## Possible Errors and Troubleshooting
