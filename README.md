@@ -79,6 +79,7 @@ cd <PATH to FOLDER WHERE YOU WANT THE GITHUB REPO TO BE LOCATED> && \
 git clone https://github.com/fbcorrea/hvrlocator && \
 cd hvrlocator && \
 pip install -e .
+mamba install -c bioconda -c conda-forge mafft scikit-learn==1.1.3 
 ```
 
 
@@ -100,6 +101,11 @@ You can specify the location of the E. coli reference file if it's not in the de
 hvrlocator sra -r SRR1585194 --ecoli /path/to/ecoli.fa -o /path/to/output_folder
 ```
 
+If you want:
+
+```bash
+hvrlocator sra -r SRR1585194 --ecoli /path/to/ecoli.fa -o /path/to/output_folder
+```
 ### Processing ASV FASTA Files
 
 To process a FASTA file containing ASV sequences:
