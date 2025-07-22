@@ -202,7 +202,40 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, model_path=None, incl
     output_line = process_fasta(aligned, threshold, input_id, include_header, primer_flag, primer_score)
     return True, output_line
 
-def process_fasta(input_fasta, threshold, sample_id, include_header=True, primer_flag='NA', primer_score='NA'):
+def process_fasta(input_fasta, threshold, sample_id, include_header=True,model_path=None, primer_flag='NA', primer_score='NA'):
+     if model_path and os.path.exists(model_path) and (
+        input_fasta.endswith(".fastq") or input_fasta.endswith(".fq") or input_fasta.endswith(".fastq.gz")
+    ):
+        try:
+            rf_model = joblib.load(model_path)
+            s1, s2 = [], []
+            # Use FastqGeneralIterator for speed; handles plain FASTQ (not gz)
+            # If gzipped, you'd need to open with gzip.open
+            opener = open
+            if input_fasta.endswith(".gz"):
+                import gzip
+                opener = gzip.open
+
+            with opener(input_fasta, "rt") as fh:
+                for header, seq, qual in FastqGeneralIterator(fh):
+                    q = [ord(c) - 33 for c in qual]
+                    if len(q) >= 10:
+                        s1.extend(q[:5])
+                        s2.extend(q[5:10])
+
+            if s1 and s2:
+                a1, a2 = np.array(s1), np.array(s2)
+                m1 = get_stats(a1, prefix='1_5')
+                m2 = get_stats(a2, prefix='6_10')
+                feat = [m1[c] for c in FEATURE_COLUMNS[:8]] + [m2[c] for c in FEATURE_COLUMNS[8:]]
+                proba = rf_model.predict_proba([feat])[0][1]
+                primer_flag = 'TRUE' if proba > 0.5 else 'FALSE'
+                primer_score = f"{proba:.3f}"
+            else:
+                print("Warning: Not enough quality scores to compute primer features; leaving primer fields as NA.")
+        except Exception as e:
+            print(f"Model error: {e}")
+    
     seqs = list(SeqIO.parse(input_fasta, 'fasta'))
     if len(seqs) < 2:
         return "Error\tInsufficient sequences\n"
