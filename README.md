@@ -79,7 +79,7 @@ cd <PATH to FOLDER WHERE YOU WANT THE GITHUB REPO TO BE LOCATED> && \
 git clone https://github.com/fbcorrea/hvrlocator && \
 cd hvrlocator && \
 pip install -e .
-mamba install -c bioconda -c conda-forge mafft scikit-learn==1.1.3 
+mamba install -c bioconda -c conda-forge mafft scikit-learn==1.1.3 joblib
 ```
 
 
