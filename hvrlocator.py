@@ -8,10 +8,7 @@ import sys
 from Bio import SeqIO
 import csv
 import time
-from Bio.SeqIO.QualityIO import FastqGeneralIterator
-from statistics import mean, median, stdev
-from scipy.stats import skew, kurtosis
-
+#from Bio.SeqIO.QualityIO import FastqGeneralIterator
 
 # Define hypervariable regions globally
 regions = [
@@ -96,9 +93,9 @@ def run_command_with_retry(command, working_directory=None, max_retries=3):
             print("Retrying in 3 seconds...")
             time.sleep(3)
 
-    return False, stderr.decode('utf-8') if 'stderr' in locals() else str(e)
+    return False, stderr.decode('utf-8') if 'stderr' in locals() else str(e) if 'e' in locals() else "Unknown error"
 
-def process_sra(input_id, output_dir, ecoli_fa, threshold, model_path=None, include_header=True, report_dir=None):
+def process_sra(input_id, output_dir, ecoli_fa, threshold, model_path=None, include_header=True, report_dir=None, threads=16, max_reads=1000):
     print(f"Processing SRA data for ID: {input_id}")
     working_directory = os.path.join(output_dir, input_id)
     os.makedirs(working_directory, exist_ok=True)
@@ -119,7 +116,7 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, model_path=None, incl
         fastp_html = os.path.join(working_directory, f"{input_id}_fastp.html")
         fastp_json = os.path.join(working_directory, f"{input_id}_fastp.json")
 
-    cmd = f"fastq-dump --skip-technical --split-files -X 1000 {input_id} -O {working_directory}"
+    cmd = f"fastq-dump --skip-technical --split-files -X {max_reads} {input_id}"
     success, err = run_command_with_retry(cmd, working_directory)
     if not success:
         return False, f"Error in fastq-dump: {err}"
@@ -193,19 +190,25 @@ def process_sra(input_id, output_dir, ecoli_fa, threshold, model_path=None, incl
         seq_input = processed
 
     cmd = (
-        f"mafft --thread 16 --6merpair --nuc --keeplength "
+        f"mafft --thread {threads} --6merpair --nuc --keeplength "
         f"--addfragments {seq_input} {ecoli_fa} > {aligned}"
     )
     if not run_command(cmd):
         return False, f"Error in alignment for {input_id}"
 
-    output_line = process_fasta(aligned, threshold, input_id, include_header=include_header, primer_flag=primer_flag, primer_score=primer_score)
+    output_line = process_fasta(aligned, threshold, input_id, include_header, primer_flag=primer_flag, primer_score=primer_score)
     return True, output_line
 
-def process_fasta(input_fasta, threshold, sample_id, include_header=True, model_path=None, primer_flag='NA', primer_score='NA'):
+def process_fasta(input_fasta, threshold, sample_id, include_header=True, primer_flag='NA', primer_score='NA', model_path=None):
     seqs = list(SeqIO.parse(input_fasta, 'fasta'))
     if len(seqs) < 2:
         return "Error\tInsufficient sequences\n"
+
+    # Handle model for primer detection
+    if model_path and os.path.exists(model_path):
+        print(f"Note: Model provided ({model_path}) but cannot be used with FASTA files.")
+        print("Primer detection requires quality scores which are only available in FASTQ files.")
+        print("Primer presence will be set to 'NA' for FASTA input.")
 
     starts, ends = [], []
     for rec in seqs:
@@ -215,6 +218,9 @@ def process_fasta(input_fasta, threshold, sample_id, include_header=True, model_
         if start is not None and end is not None:
             starts.append(start)
             ends.append(end)
+
+    if not starts or not ends:
+        return "Error\tNo valid alignment positions found\n"
 
     med_s = int(statistics.median(starts))
     med_e = int(statistics.median(ends))
@@ -262,10 +268,10 @@ def process_fasta(input_fasta, threshold, sample_id, include_header=True, model_
         "Coverage_based_HV_region_start", "Coverage_based_HV_region_end",
         "Coverage_HV_region_start", "Coverage_HV_region_end",
         "Warnings"
-    ] + [f"Cov_V{n}" for n in range(1, 10)] 
+    ] + [f"Cov_V{n}" for n in range(1, 10)]
     values = [
         sample_id, primer_flag, primer_score,
-        min_s, max_e,avg_s, avg_e, med_s, med_e,
+        min_s, max_e, avg_s, avg_e, med_s, med_e,
         ps, pe, hv_s, hv_e,
         f"{cov_ps:.2f}", f"{cov_pe:.2f}", warn
     ] + [f"{covs[n]:.2f}" for n in range(1, 10)]
@@ -290,20 +296,26 @@ def process_table(input_tsv, output_dir, threshold, combined_output_file):
             writer.writeheader()
             for row in reader:
                 writer.writerow(row)
+
     print(f"Recalculation complete. Saved: {combined_output_file}")
 
-def process_id_list(id_list_file, output_dir, ecoli_fa, threshold, model_path=None, report_dir=None):
+def process_id_list(id_list_file, output_dir, ecoli_fa, threshold, model_path=None, report_dir=None, threads=16, max_reads=1000):
+    if not os.path.exists(id_list_file):
+        raise FileNotFoundError(f"ID list file not found: {id_list_file}")
+
     runs = [r.strip() for r in open(id_list_file) if r.strip()]
-    combined = os.path.join(output_dir, 'hvreglocator_combined_output.txt')
-    errors = os.path.join(output_dir, 'hvreglocator_error_report.txt')
+    if not runs:
+        raise ValueError(f"No valid IDs found in file: {id_list_file}")
+    combined = os.path.join(output_dir, 'hvrlocator_combined_output.txt')
+    errors = os.path.join(output_dir, 'hvrlocator_error_report.txt')
     os.makedirs(output_dir, exist_ok=True)
     header = [
         "Sample_ID", "Primer_Presence", "Score_Primer_Presence",
         "Min_Alignment_start", "Max_Alignment_end",
-	"Average_Alignment_start", "Average_Alignment_end",
+        "Average_Alignment_start", "Average_Alignment_end",
         "Median_Alignment_start", "Median_Alignment_end",
         "Predicted_HV_region_start", "Predicted_HV_region_end",
-	"Coverage_based_HV_region_start", "Coverage_based_HV_region_end", 
+        "Coverage_based_HV_region_start", "Coverage_based_HV_region_end",
         "Coverage_HV_region_start", "Coverage_HV_region_end",
         "Warnings"
     ] + [f"Cov_V{n}" for n in range(1, 10)]
@@ -311,15 +323,17 @@ def process_id_list(id_list_file, output_dir, ecoli_fa, threshold, model_path=No
         co.write("\t".join(header) + "\n")
         er.write("Sample_ID\tError\n")
     retries = []
-    for rid in runs:
-        ok, res = process_sra(rid, output_dir, ecoli_fa, threshold, model_path=model_path, include_header=False, report_dir=report_dir)
+    print(f"Processing {len(runs)} SRA IDs...")
+    for i, rid in enumerate(runs, 1):
+        print(f"[{i}/{len(runs)}] Processing {rid}")
+        ok, res = process_sra(rid, output_dir, ecoli_fa, threshold, model_path=model_path, include_header=False, report_dir=report_dir, threads=threads, max_reads=max_reads)
         if ok:
             with open(combined, 'a') as co:
                 co.write(res)
         else:
             retries.append((rid, res))
     for rid, res in retries:
-        ok, res2 = process_sra(rid, output_dir, ecoli_fa, threshold, model_path=model_path, include_header=False, report_dir=report_dir)
+        ok, res2 = process_sra(rid, output_dir, ecoli_fa, threshold, model_path=model_path, include_header=False, report_dir=report_dir, threads=threads, max_reads=max_reads)
         if ok:
             with open(combined, 'a') as co:
                 co.write(res2)
@@ -330,7 +344,7 @@ def process_id_list(id_list_file, output_dir, ecoli_fa, threshold, model_path=No
     print(f"Errors: {errors}")
 
 def main():
-    parser = argparse.ArgumentParser(description="HVRegLocator: locate hypervariable regions")
+    parser = argparse.ArgumentParser(description="HVRLocator: locate hypervariable regions")
     sub = parser.add_subparsers(dest='command', required=True)
 
     sra_p = sub.add_parser('sra')
@@ -341,6 +355,8 @@ def main():
     sra_p.add_argument('-t', '--threshold', type=float, default=0.6)
     sra_p.add_argument('-m', '--model', help='Path to trained RF model (.pkl)')
     sra_p.add_argument('--report-dir')
+    sra_p.add_argument('--threads', type=int, default=16, help='Number of threads for MAFFT alignment (default: 16)')
+    sra_p.add_argument('--max-reads', type=int, default=1000, help='Maximum number of reads to download from SRA (default: 1000)')
 
     fasta_p = sub.add_parser('fasta')
     fasta_p.add_argument('-f', '--fasta-file', required=True)
@@ -349,12 +365,29 @@ def main():
     fasta_p.add_argument('-t', '--threshold', type=float, default=0.6)
     fasta_p.add_argument('-m', '--model', help='Path to trained RF model (.pkl)')
 
+
     table_p = sub.add_parser('table')
     table_p.add_argument('-i', '--input-tsv', required=True)
     table_p.add_argument('-o', '--output-dir', required=True)
     table_p.add_argument('-t', '--threshold', type=float, default=0.6)
 
     args = parser.parse_args()
+
+    # Input validation
+    if hasattr(args, 'threshold') and (args.threshold < 0 or args.threshold > 1):
+        parser.error(f"Threshold must be between 0 and 1, got {args.threshold}")
+
+    if hasattr(args, 'model') and args.model and not os.path.exists(args.model):
+        parser.error(f"Model file not found: {args.model}")
+
+    if hasattr(args, 'model') and args.model and not args.model.endswith('.pkl'):
+        print(f"Warning: Model file should be a .pkl file, got: {args.model}")
+
+    if hasattr(args, 'max_reads') and args.max_reads <= 0:
+        parser.error(f"Max reads must be positive, got {args.max_reads}")
+
+    if hasattr(args, 'threads') and args.threads <= 0:
+        parser.error(f"Number of threads must be positive, got {args.threads}")
 
     if args.command in ['sra', 'fasta']:
         ecoli_fa = args.ecoli or os.path.join(os.path.dirname(__file__), 'ecoli.fa')
@@ -365,11 +398,11 @@ def main():
 
     if args.command == 'sra':
         if args.list_file:
-            process_id_list(args.list_file, args.output_dir, ecoli_fa, args.threshold, model_path=args.model, report_dir=args.report_dir)
+            process_id_list(args.list_file, args.output_dir, ecoli_fa, args.threshold, model_path=args.model, report_dir=args.report_dir, threads=args.threads, max_reads=args.max_reads)
         elif args.run_id:
-            ok, res = process_sra(args.run_id, args.output_dir, ecoli_fa, args.threshold, model_path=args.model, include_header=True, report_dir=args.report_dir)
+            ok, res = process_sra(args.run_id, args.output_dir, ecoli_fa, args.threshold, model_path=args.model, include_header=True, report_dir=args.report_dir, threads=args.threads, max_reads=args.max_reads)
             if ok:
-                outf = os.path.join(args.output_dir, f"{args.run_id}_hvreglocator_output.txt")
+                outf = os.path.join(args.output_dir, f"{args.run_id}_hvrlocator_output.txt")
                 with open(outf, 'w') as f:
                     f.write(res)
                 print(f"Output saved: {outf}")
@@ -381,15 +414,22 @@ def main():
     elif args.command == 'fasta':
         sid = os.path.splitext(os.path.basename(args.fasta_file))[0]
         res = process_fasta(args.fasta_file, args.threshold, sid, include_header=True, model_path=args.model)
-        outf = os.path.join(args.output_dir, 'hvreglocator_output.txt')
+        outf = os.path.join(args.output_dir, 'hvrlocator_output.txt')
         with open(outf, 'w') as f:
             f.write(res)
         print(f"Output saved: {outf}")
 
     elif args.command == 'table':
-        inp = os.path.abspath(args.input_tsv)
-        outp = os.path.join(args.output_dir, 'hvreglocator_recalculated_output.txt')
-        process_table(inp, args.output_dir, args.threshold, outp)
+        try:
+            inp = os.path.abspath(args.input_tsv)
+            outp = os.path.join(args.output_dir, 'hvrlocator_recalculated_output.txt')
+            process_table(inp, args.output_dir, args.threshold, outp)
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+            sys.exit(1)
+        except Exception as e:
+            print(f"Unexpected error during table processing: {e}")
+            sys.exit(1)
 
 if __name__ == '__main__':
     main()
