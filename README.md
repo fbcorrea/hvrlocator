@@ -36,6 +36,12 @@ You can specify the location of the E. coli reference file if it's not in the de
 singularity exec hvrlocator.sif hvrlocator sra -r SRR1585194 --ecoli /path/to/ecoli.fa -o /path/to/output/folder
 ```
 
+To use the Random Forest model to also predict the presence of a primer please use the following (also applicable to the processing of a list of runs):
+
+```bash
+singularity exec hvrlocator.sif hvrlocator sra -r SRR1585194 --ecoli /path/to/ecoli.fa -o /path/to/output/folder -m /path/to/rf_model.pkl
+```
+
 To process a list of SRA runs:
 
 ```bash
@@ -101,11 +107,18 @@ You can specify the location of the E. coli reference file if it's not in the de
 hvrlocator sra -r SRR1585194 --ecoli /path/to/ecoli.fa -o /path/to/output_folder
 ```
 
-If you want:
+To use the Random Forest model to also predict the presence of a primer please use the following:
 
 ```bash
-hvrlocator sra -r SRR1585194 --ecoli /path/to/ecoli.fa -o /path/to/output_folder
+hvrlocator sra -r SRR1585194 --ecoli /path/to/ecoli.fa -o /path/to/output_folder -m /path/to/rf_model.pkl
 ```
+
+To process a list of SRA runs (don't forget to add the **-m /path/to/rf_model.pkl** if you wish to also predict primer presence):
+
+```bash
+hvrlocator sra -l /path/to/SRA_list.txt -o /path/to/output_folder
+```
+
 ### Processing ASV FASTA Files
 
 To process a FASTA file containing ASV sequences:
