@@ -12,7 +12,7 @@ Go to <https://cloud.sylabs.io/library/jsaraiva/repo/hvrlocator>
 
 Paste the following command in your terminal:
 ```
-singularity pull --arch amd64 library://jsaraiva/repo/hvrlocator:hvrlocator
+singularity pull --arch amd64 library://jsaraiva/repo/hvrlocator:hvr
 ```
 
 ## Usage
