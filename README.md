@@ -1,6 +1,6 @@
-# HVR Locator
+# HVRLocator
 
-HVR Locator is a workflow to identify spanning hypervariable region(s) from amplicon sequencing variants or SRA public runs (SRR). It aligns query sequences to a reference E. coli full-length 16S rRNA gene and identifies the spanning region through alignment.
+HVRLocator is a workflow to identify spanning hypervariable region(s) from amplicon sequencing variants or SRA public runs (SRR). It aligns query sequences to a reference E. coli full-length 16S rRNA gene and identifies the spanning region through alignment.
 
 ## Using Singularity to run HVRlocator (Recommended)
 
@@ -61,7 +61,7 @@ singularity exec hvrlocator.sif hvrlocator sra -l /path/to/list.txt --ecoli /pat
 To process a FASTA file containing ASV sequences:
 
 ```bash
-hvreglocator fasta -f path/to/your/asv_sequences.fasta --ecoli /path/to/ecoli.fa -o /path/to/output/folder
+hvrlocator fasta -f path/to/your/asv_sequences.fasta --ecoli /path/to/ecoli.fa -o /path/to/output/folder
 ```
 
 ### To modify the coverage threshold (default = 0.6) add the "*-t*" flag at the end pf the command (e.g. -t 0.7)" 
@@ -91,7 +91,7 @@ mamba install -c bioconda -c conda-forge mafft scikit-learn==1.1.3 joblib
 
 ## Usage
 
-HVRegLocator can process both SRA accession numbers and FASTA files containing ASV sequences.
+HVRLocator can process both SRA accession numbers and FASTA files containing ASV sequences.
 
 ### Processing SRA Accession Numbers
 
