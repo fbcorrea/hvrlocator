@@ -179,7 +179,7 @@ A detailed description of the Random Forest model generation is available [here]
 
 ## Contributing
 
-Contributions to HVRegLocator are welcome. Please feel free to submit a Pull Request.
+Contributions to HVRLocator are welcome. Please feel free to submit a Pull Request.
 
 ## License
 
