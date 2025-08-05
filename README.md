@@ -17,7 +17,7 @@ singularity pull --arch amd64 library://jsaraiva/repo/hvrlocator:hvr
 
 ## Usage
 
-HVRegLocator can process both SRA accession numbers and FASTA files containing ASV sequences. For specific help on each function type one of the following:
+HVRLocator can process both SRA accession numbers and FASTA files containing ASV sequences. For specific help on each function type one of the following:
 
 singularity exec hvrlocator.sif hvrlocator sra --help
 singularity exec hvrlocator.sif hvrlocator align --help
