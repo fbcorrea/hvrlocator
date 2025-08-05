@@ -68,7 +68,7 @@ hvrlocator fasta -f path/to/your/asv_sequences.fasta --ecoli /path/to/ecoli.fa -
 
 ## Local Installation (Alternative)
 
-To install HVR Locator locally, follow these steps:
+To install HVRLocator locally, follow these steps:
 
 1. Create a new conda environment:
 
