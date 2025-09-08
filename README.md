@@ -183,4 +183,4 @@ Contributions to HVRLocator are welcome. Please feel free to submit a Pull Reque
 
 ## License
 
-This project is licensed under the terms of the MIT license.
+This project is licensed under the terms of the GNU General Public License v3.0 license.
