@@ -183,4 +183,5 @@ Contributions to HVRLocator are welcome. Please feel free to submit a Pull Reque
 
 ## License
 
-This project is licensed under the terms of the MIT License.
+This repository is licensed under the terms of the MIT License. 
+The files "rf_model.pkl", "ecoli.fa", "mafft.fa" and "query.fa" are released under the Creative Commons CC0 1.0 Universal Public Domain Dedication (CC0 1.0 Universal).
